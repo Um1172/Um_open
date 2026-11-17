@@ -1,0 +1,3582 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>クリスタルLM (CrystalLM)</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <style>
+    :root {
+      --bg-app: #0d1117;
+      --bg-sidebar: #11161f;
+      --bg-panel: #161b22;
+      --bg-card: #1c222b;
+      --bg-user: #1f3a5f;
+      --bg-input: #0d1117;
+      --border: #2b3340;
+      --text-main: #e6edf3;
+      --text-muted: #8b949e;
+      --accent: #58a6ff;
+      --accent-hover: #79c0ff;
+      --green: #3fb950;
+      --red: #f85149;
+      --amber: #d29922;
+      --purple: #bc8cff;
+      --mono: "Cascadia Code", "Fira Code", Consolas, monospace;
+      --sans: "Segoe UI", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--sans);
+      background: var(--bg-app);
+      color: var(--text-main);
+      height: 100vh;
+      display: grid;
+      grid-template-columns: 270px 1fr 290px;
+      overflow: hidden;
+    }
+
+    /* Scrollbars */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #484f58; }
+
+    /* Left Sidebar */
+    .sidebar {
+      background: var(--bg-sidebar);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .sidebar-top {
+      padding: 14px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .btn-new-chat {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      color: var(--text-main);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .btn-new-chat:hover { background: #242c37; border-color: var(--accent); }
+
+    .sidebar-section-title {
+      padding: 12px 14px 6px;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .session-list {
+      max-height: 200px;
+      flex: 0 0 auto;
+      overflow-y: auto;
+      padding: 4px 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .session-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      color: var(--text-muted);
+      transition: background 0.12s, color 0.12s;
+    }
+    .session-item:hover { background: var(--bg-card); color: var(--text-main); }
+    .session-item.active { background: #1f2a38; color: var(--text-main); font-weight: 600; }
+
+    .session-title {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 1;
+    }
+
+    .session-del {
+      opacity: 0;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 2px 5px;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+    .session-item:hover .session-del { opacity: 1; }
+    .session-del:hover { color: var(--red); background: rgba(248, 81, 73, 0.15); }
+
+    .memory-nav {
+      border-top: 1px solid var(--border);
+      padding: 8px 8px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .memory-btn {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      padding: 7px 10px;
+      border-radius: 6px;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 12px;
+      font-family: var(--mono);
+      cursor: pointer;
+      text-align: left;
+    }
+    .memory-btn:hover { background: var(--bg-card); color: var(--accent); }
+
+    .tree-container {
+      flex: 1;
+      min-height: 120px;
+      overflow-y: auto;
+      padding: 4px 8px 10px;
+      border-top: 1px solid var(--border);
+      font-size: 12px;
+    }
+    details.tree-folder {
+      margin: 2px 0;
+    }
+    details.tree-folder > summary {
+      cursor: pointer;
+      list-style: none;
+      padding: 4px 6px;
+      border-radius: 6px;
+      color: var(--text-main);
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      user-select: none;
+    }
+    details.tree-folder > summary:hover {
+      background: var(--bg-card);
+    }
+    .tree-children {
+      padding-left: 12px;
+      border-left: 1px dashed var(--border);
+      margin-left: 7px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .tree-file {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      padding: 4px 7px;
+      border-radius: 6px;
+      cursor: pointer;
+      color: var(--text-muted);
+      transition: background 0.15s, color 0.15s;
+    }
+    .tree-file:hover {
+      background: var(--bg-card);
+      color: var(--accent);
+    }
+    .tree-file-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-family: ui-monospace, monospace;
+      font-size: 11.5px;
+    }
+    .tree-file-size {
+      font-size: 10px;
+      color: var(--text-muted);
+      flex-shrink: 0;
+    }
+
+    .mode-select {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      border-radius: 6px;
+      padding: 3px 8px;
+      font-size: 12px;
+      outline: none;
+      cursor: pointer;
+    }
+    .mode-select:focus {
+      border-color: var(--accent);
+    }
+
+    /* Center Main Chat Area */
+    .main-area {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      min-width: 0;
+      background: var(--bg-app);
+    }
+
+    .chat-header {
+      height: 56px;
+      padding: 0 18px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-panel);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 14px;
+    }
+
+    .brand-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 8px var(--accent);
+    }
+
+    .header-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      white-space: nowrap;
+    }
+    .status-pill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-muted); }
+    .status-pill.connected .dot { background: var(--green); }
+    .status-pill.connected { color: #7ee787; border-color: rgba(63, 185, 80, 0.35); }
+    .status-pill.disconnected .dot { background: var(--red); }
+    .status-pill.disconnected { color: #ffa198; border-color: rgba(248, 81, 73, 0.35); }
+
+    select.model-select {
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 12px;
+      max-width: 300px;
+      outline: none;
+    }
+    select.model-select:focus { border-color: var(--accent); }
+
+    .btn-sm {
+      padding: 6px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      color: var(--text-main);
+      font-size: 12px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .btn-sm:hover { border-color: var(--accent); color: var(--accent); }
+
+    .step-badge {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--accent);
+      padding: 4px 8px;
+      background: rgba(88, 166, 255, 0.1);
+      border-radius: 6px;
+      white-space: nowrap;
+    }
+
+    /* Chat Messages */
+    .chat-scroll {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      padding: 24px 20px 40px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .chat-container {
+      width: 100%;
+      max-width: 840px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      flex-shrink: 0;
+    }
+
+    .welcome-box {
+      margin: 60px auto;
+      text-align: center;
+      max-width: 520px;
+      color: var(--text-muted);
+      line-height: 1.7;
+    }
+    .welcome-box h2 { color: var(--text-main); font-size: 20px; margin-bottom: 8px; }
+
+    .msg-row {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .msg-row.user { align-items: flex-end; }
+    .msg-row.assistant { align-items: flex-start; }
+
+    .user-bubble {
+      background: var(--bg-user);
+      color: #f0f6fc;
+      padding: 12px 16px;
+      border-radius: 16px 16px 4px 16px;
+      max-width: 80%;
+      font-size: 14px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-break: break-word;
+      flex-shrink: 0;
+    }
+
+    .assistant-wrap {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    /* Thinking Accordion & Per-Step Inline Timeline */
+    details.thinking-accordion {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      font-size: 12px;
+      flex-shrink: 0;
+    }
+
+    details.thinking-accordion summary {
+      padding: 9px 14px;
+      cursor: pointer;
+      color: var(--text-muted);
+      font-weight: 600;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      list-style: none;
+    }
+    details.thinking-accordion summary::-webkit-details-marker { display: none; }
+    details.thinking-accordion summary:hover { color: var(--text-main); background: rgba(255,255,255,0.02); }
+
+    .thinking-body {
+      border-top: 1px solid var(--border);
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-height: 360px;
+      overflow-y: auto;
+      background: #0b0f14;
+    }
+
+    .log-entry {
+      border-left: 2px solid var(--border);
+      padding-left: 10px;
+      font-size: 12px;
+      line-height: 1.5;
+      flex-shrink: 0;
+    }
+    .log-entry.thinking { border-left-color: var(--purple); }
+    .log-entry.tool_call { border-left-color: var(--accent); }
+    .log-entry.tool_result { border-left-color: var(--green); }
+    .log-entry.warning { border-left-color: var(--amber); color: #e3b341; }
+
+    details.step-detail {
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--border);
+      border-radius: 6px;
+      background: var(--bg-panel);
+      overflow: visible;
+      width: 100%;
+      flex-shrink: 0;
+    }
+    details.step-detail.thinking { border-left-color: var(--purple); }
+    details.step-detail.work { border-left-color: var(--accent); }
+    details.step-detail.step-output { border-left-color: var(--accent); }
+    details.step-detail.warning { border-left-color: var(--amber); }
+    details.step-detail.d1-supervisor {
+      border-color: rgba(245, 158, 11, 0.45);
+      border-left: 4px solid #f59e0b;
+      background: linear-gradient(90deg, rgba(245, 158, 11, 0.13), var(--bg-panel));
+    }
+    details.step-detail.d1-supervisor > summary {
+      color: #fde68a;
+    }
+    details.step-detail.d1-supervisor .step-tag {
+      color: #fbbf24;
+      background: rgba(245, 158, 11, 0.16);
+      border: 1px solid rgba(245, 158, 11, 0.38);
+    }
+    .d1-diag-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+    .d1-diag-item {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 8px;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+    .d1-diag-item strong {
+      color: #fbbf24;
+      margin-right: 6px;
+    }
+    details.step-detail.d1-supervisor.escalated {
+      border-color: rgba(239, 68, 68, 0.55);
+      border-left: 4px solid #ef4444;
+      background: linear-gradient(90deg, rgba(239, 68, 68, 0.14), var(--bg-panel));
+    }
+    details.step-detail.d1-supervisor.escalated > summary { color: #fecaca; }
+    details.step-detail.d1-coder-route {
+      border-color: rgba(56, 189, 248, 0.42);
+      border-left: 4px solid #38bdf8;
+      background: linear-gradient(90deg, rgba(56, 189, 248, 0.11), var(--bg-panel));
+    }
+    details.step-detail.d1-coder-route > summary { color: #bae6fd; }
+    details.step-detail.d1-coder-route .step-tag {
+      color: #7dd3fc;
+      background: rgba(56, 189, 248, 0.15);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+    }
+    details.step-detail.direct-burst {
+      border-color: rgba(16, 185, 129, 0.55);
+      border-left: 4px solid #10b981;
+      background: linear-gradient(90deg, rgba(16, 185, 129, 0.14), var(--bg-panel));
+    }
+    details.step-detail.direct-burst > summary { color: #a7f3d0; }
+    details.step-detail.direct-burst .step-tag {
+      color: #34d399;
+      background: rgba(16, 185, 129, 0.16);
+      border: 1px solid rgba(16, 185, 129, 0.42);
+    }
+    details.step-detail.trash-isolation {
+      border-color: rgba(168, 85, 247, 0.48);
+      border-left: 4px solid #a855f7;
+      background: linear-gradient(90deg, rgba(168, 85, 247, 0.12), var(--bg-panel));
+    }
+    details.step-detail.trash-isolation > summary { color: #e9d5ff; }
+    details.step-detail.trash-isolation .step-tag {
+      color: #d8b4fe;
+      background: rgba(168, 85, 247, 0.16);
+      border: 1px solid rgba(168, 85, 247, 0.4);
+    }
+    details.step-detail summary {
+      padding: 7px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-main);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      list-style: none;
+      flex-shrink: 0;
+      user-select: none;
+    }
+    details.step-detail summary::-webkit-details-marker { display: none; }
+    details.step-detail summary:hover { background: rgba(255,255,255,0.03); }
+    .step-summary-left {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      min-width: 0;
+      flex: 1;
+    }
+    .step-summary-text {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .step-arrow {
+      display: inline-block;
+      font-size: 10px;
+      color: var(--text-muted);
+      transition: transform 0.15s ease;
+      flex-shrink: 0;
+    }
+    details.step-detail[open] > summary .step-arrow {
+      transform: rotate(90deg);
+    }
+    .step-tag {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--text-muted);
+      background: var(--bg-card);
+      padding: 2px 6px;
+      border-radius: 4px;
+      flex-shrink: 0;
+    }
+    .step-detail-body {
+      border-top: 1px solid var(--border);
+      padding: 8px 10px;
+      font-size: 12px;
+      background: #0d1117;
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 300px;
+      overflow-y: auto;
+      flex-shrink: 0;
+      border-radius: 0 0 6px 6px;
+    }
+
+    .turn-ut-slot,
+    .turn-steps-timeline,
+    .turn-live-phase,
+    .live-timeline {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      width: 100%;
+      flex-shrink: 0;
+    }
+    .turn-ut-slot:empty,
+    .turn-steps-timeline:empty,
+    .turn-live-phase:empty {
+      display: none;
+    }
+    .live-status-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      background: rgba(88, 166, 255, 0.08);
+      border: 1px solid rgba(88, 166, 255, 0.28);
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--accent);
+      flex-shrink: 0;
+    }
+    .live-status-bar.working {
+      background: rgba(63, 185, 80, 0.08);
+      border-color: rgba(63, 185, 80, 0.3);
+      color: #7ee787;
+    }
+    .live-status-bar.done {
+      background: var(--bg-panel);
+      border-color: var(--border);
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+    .live-spinner {
+      width: 12px;
+      height: 12px;
+      border: 2px solid currentColor;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .narration-note {
+      font-size: 13px;
+      color: var(--text-muted);
+      padding: 6px 12px;
+      border-left: 2px solid var(--accent);
+      background: rgba(255, 255, 255, 0.02);
+      border-radius: 0 6px 6px 0;
+      flex-shrink: 0;
+    }
+
+    .parallel-batch-box {
+      border: 1px solid rgba(88, 166, 255, 0.35);
+      background: rgba(22, 27, 34, 0.9);
+      border-radius: 10px;
+      padding: 10px 12px;
+      margin: 4px 0;
+      flex-shrink: 0;
+    }
+    .parallel-batch-box.completed {
+      border-color: var(--border);
+      background: var(--bg-panel);
+    }
+    .parallel-batch-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--accent);
+      margin-bottom: 8px;
+    }
+    .parallel-batch-box.completed .parallel-batch-header {
+      color: #7ee787;
+    }
+    .parallel-workers-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+    }
+    @media (max-width: 1180px) {
+      .parallel-workers-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+    .worker-card {
+      background: #0d1117;
+      border: 1px solid var(--border);
+      border-top: 3px solid var(--accent);
+      border-radius: 8px;
+      padding: 8px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      min-width: 0;
+    }
+    .worker-card.working { border-top-color: var(--green); }
+    .worker-card.completed { border-top-color: var(--green); opacity: 0.92; }
+    .worker-card.error { border-top-color: var(--red); }
+    .worker-card-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 4px;
+    }
+    .worker-name {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-main);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .worker-timer {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-muted);
+      flex-shrink: 0;
+    }
+    .worker-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10.5px;
+      font-weight: 600;
+      padding: 1px 6px;
+      border-radius: 999px;
+      width: fit-content;
+      background: rgba(88, 166, 255, 0.14);
+      color: var(--accent);
+    }
+    .worker-card.working .worker-badge,
+    .worker-card.completed .worker-badge {
+      background: rgba(63, 185, 80, 0.15);
+      color: #7ee787;
+    }
+    .worker-card.error .worker-badge {
+      background: rgba(248, 81, 73, 0.15);
+      color: var(--red);
+    }
+    .worker-task {
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--text-main);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .worker-detail {
+      font-size: 11px;
+      color: var(--text-muted);
+      line-height: 1.4;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+    }
+
+    .log-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      margin-bottom: 3px;
+    }
+
+    .log-pre {
+      font-family: var(--mono);
+      font-size: 11px;
+      background: var(--bg-panel);
+      padding: 8px;
+      border-radius: 6px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 180px;
+      overflow-y: auto;
+    }
+
+    /* Markdown Assistant Bubble */
+    .assistant-bubble {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px 20px;
+      font-size: 14px;
+      line-height: 1.7;
+      width: 100%;
+      overflow-x: auto;
+      flex-shrink: 0;
+    }
+
+    .assistant-bubble h1, .assistant-bubble h2, .assistant-bubble h3 {
+      margin: 14px 0 8px;
+      color: var(--text-main);
+    }
+    .assistant-bubble h1:first-child, .assistant-bubble h2:first-child { margin-top: 0; }
+    .assistant-bubble p { margin-bottom: 10px; }
+    .assistant-bubble p:last-child { margin-bottom: 0; }
+    .assistant-bubble ul, .assistant-bubble ol { margin: 8px 0 10px 22px; }
+    .assistant-bubble li { margin-bottom: 4px; }
+    .assistant-bubble code {
+      font-family: var(--mono);
+      font-size: 12.5px;
+      background: rgba(110, 118, 129, 0.2);
+      padding: 2px 5px;
+      border-radius: 4px;
+    }
+    .assistant-bubble pre {
+      position: relative;
+      margin: 12px 0;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #0d1117;
+      overflow: hidden;
+    }
+    .assistant-bubble pre code {
+      display: block;
+      padding: 14px;
+      background: transparent;
+      overflow-x: auto;
+      line-height: 1.5;
+    }
+
+    .copy-code-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      padding: 4px 8px;
+      font-size: 11px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      color: var(--text-muted);
+      cursor: pointer;
+    }
+    .copy-code-btn:hover { color: var(--text-main); border-color: var(--accent); }
+
+    .typing-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text-muted);
+      font-size: 13px;
+      padding: 8px 12px;
+    }
+
+    /* Bottom Input Area */
+    .input-dock {
+      border-top: 1px solid var(--border);
+      background: var(--bg-panel);
+      padding: 14px 20px;
+      flex-shrink: 0;
+    }
+
+    .input-box {
+      max-width: 840px;
+      margin: 0 auto;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      position: relative;
+    }
+
+    .slash-autocomplete {
+      display: none;
+      position: absolute;
+      bottom: calc(100% + 8px);
+      left: 0;
+      right: 0;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+      padding: 6px;
+      z-index: 50;
+    }
+
+    .slash-autocomplete.open {
+      display: block;
+    }
+
+    .slash-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 8px 10px;
+      border-radius: 7px;
+      cursor: pointer;
+      font-size: 12px;
+      color: var(--text-main);
+    }
+
+    .slash-item:hover,
+    .slash-item.active {
+      background: rgba(99, 102, 241, 0.22);
+    }
+
+    .slash-cmd {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-weight: 700;
+      color: #a5b4fc;
+      white-space: nowrap;
+    }
+
+    .slash-desc {
+      flex: 1;
+      color: var(--text-muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .slash-meta {
+      font-size: 11px;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+
+    .ut-panel {
+      display: none;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      margin-bottom: 10px;
+      font-size: 12px;
+    }
+
+    .ut-panel.active {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .ut-panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .ut-gear-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      border: 1px solid transparent;
+      white-space: nowrap;
+    }
+
+    .ut-gear-badge.high {
+      background: rgba(249, 115, 22, 0.16);
+      color: #fb923c;
+      border-color: rgba(249, 115, 22, 0.4);
+    }
+
+    .ut-gear-badge.low {
+      background: rgba(56, 189, 248, 0.16);
+      color: #38bdf8;
+      border-color: rgba(56, 189, 248, 0.4);
+    }
+
+    .ut-gear-badge.gc {
+      background: rgba(168, 85, 247, 0.18);
+      color: #c084fc;
+      border-color: rgba(168, 85, 247, 0.45);
+    }
+
+    .ut-gear-badge.idle {
+      background: rgba(148, 163, 184, 0.14);
+      color: var(--text-muted);
+      border-color: var(--border);
+    }
+
+    .ut-stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 6px;
+    }
+
+    .ut-stat-box {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      padding: 6px 4px;
+      text-align: center;
+    }
+
+    .ut-stat-val {
+      font-size: 14px;
+      font-weight: 700;
+      line-height: 1.2;
+      color: var(--text-main);
+    }
+
+    .ut-stat-lbl {
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .ut-meta-row {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      font-size: 11px;
+      color: var(--text-muted);
+      word-break: break-all;
+    }
+
+    .plan-status-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 700;
+      margin-right: 6px;
+      vertical-align: middle;
+      white-space: nowrap;
+    }
+
+    .plan-status-badge.unverified {
+      background: rgba(234, 179, 8, 0.16);
+      color: #facc15;
+    }
+
+    .plan-status-badge.verified {
+      background: rgba(34, 197, 94, 0.16);
+      color: #4ade80;
+    }
+
+    .plan-status-badge.rejected {
+      background: rgba(239, 68, 68, 0.16);
+      color: #f87171;
+    }
+
+    .ut-live-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 999px;
+      margin-bottom: 6px;
+    }
+    .input-box:focus-within { border-color: var(--accent); }
+
+    .input-box textarea {
+      width: 100%;
+      background: transparent;
+      border: none;
+      color: var(--text-main);
+      font-family: inherit;
+      font-size: 14px;
+      line-height: 1.5;
+      resize: none;
+      outline: none;
+      min-height: 24px;
+      max-height: 180px;
+    }
+
+    .input-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .input-meta {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px 10px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .input-meta input[type="number"] {
+      width: 60px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      border-radius: 6px;
+      padding: 3px 6px;
+      font-size: 12px;
+    }
+
+    .input-meta input[type="text"] {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      border-radius: 6px;
+      padding: 3px 8px;
+      font-size: 12px;
+      outline: none;
+    }
+    .input-meta input[type="text"]:focus { border-color: var(--accent); }
+
+    .action-btns { display: flex; gap: 8px; }
+
+    .btn-send {
+      padding: 7px 16px;
+      border-radius: 8px;
+      border: none;
+      background: var(--accent);
+      color: #09131f;
+      font-weight: 700;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .btn-send:hover:not(:disabled) { background: var(--accent-hover); }
+    .btn-send:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    .btn-stop {
+      padding: 7px 14px;
+      border-radius: 8px;
+      border: 1px solid rgba(248, 81, 73, 0.45);
+      background: rgba(248, 81, 73, 0.15);
+      color: #ffa198;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .btn-stop:hover:not(:disabled) { background: rgba(248, 81, 73, 0.28); }
+    .btn-stop:disabled { display: none; }
+
+    /* Right Inspector Panel */
+    .right-panel {
+      background: var(--bg-sidebar);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .right-header {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .right-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .plan-card {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .plan-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 7px 9px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+    .plan-item.done { opacity: 0.6; text-decoration: line-through; }
+    .plan-check { font-family: var(--mono); font-weight: 700; color: var(--accent); }
+    .plan-item.done .plan-check { color: var(--green); }
+
+    .file-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 7px 9px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    .file-item:hover { border-color: var(--accent); }
+    .file-name { font-family: var(--mono); word-break: break-all; }
+    .file-size { color: var(--text-muted); margin-left: 6px; flex-shrink: 0; font-size: 11px; }
+
+    /* Modal (Memory Editor & File Preview) */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.72);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      z-index: 200;
+    }
+    .modal-backdrop.open { display: flex; }
+
+    .modal {
+      width: min(860px, 100%);
+      max-height: 86vh;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .modal-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .modal-body {
+      padding: 16px;
+      flex: 1;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      min-height: 300px;
+    }
+
+    .modal-editor {
+      width: 100%;
+      flex: 1;
+      min-height: 380px;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text-main);
+      font-family: var(--mono);
+      font-size: 13px;
+      line-height: 1.55;
+      padding: 12px;
+      resize: none;
+      outline: none;
+    }
+    .modal-editor:focus { border-color: var(--accent); }
+
+    .modal-footer {
+      padding: 12px 16px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    /* Workspace Viewer 2-Pane Modal */
+    .viewer-modal {
+      width: min(1100px, 95vw);
+      height: min(760px, 88vh);
+    }
+    .viewer-body {
+      display: grid;
+      grid-template-columns: 290px 1fr;
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .viewer-tree-pane {
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+      padding: 10px;
+      background: rgba(15, 23, 42, 0.35);
+      min-height: 0;
+    }
+    .viewer-tree-pane .tree-file.active {
+      background: rgba(56, 189, 248, 0.16);
+      border: 1px solid rgba(56, 189, 248, 0.45);
+      color: var(--text-main);
+    }
+    .viewer-preview-pane {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      min-height: 0;
+      overflow: hidden;
+      background: rgba(2, 6, 23, 0.45);
+    }
+    .viewer-preview-bar {
+      padding: 8px 14px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(15, 23, 42, 0.65);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      font-family: var(--mono);
+      font-size: 12px;
+      flex-shrink: 0;
+    }
+    .viewer-preview-path {
+      color: var(--accent);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .viewer-preview-code {
+      flex: 1;
+      min-height: 0;
+      overflow: auto;
+      margin: 0;
+      padding: 14px 16px;
+      font-family: var(--mono);
+      font-size: 12.5px;
+      line-height: 1.58;
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: var(--text-main);
+    }
+
+    @media (max-width: 1080px) {
+      body { grid-template-columns: 240px 1fr; }
+      .right-panel { display: none; }
+    }
+    @media (max-width: 760px) {
+      body { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+      .viewer-body { grid-template-columns: 1fr; grid-template-rows: 200px 1fr; }
+      .viewer-tree-pane { border-right: none; border-bottom: 1px solid var(--border); }
+    }
+  </style>
+</head>
+<body>
+  <!-- Left Sidebar: Sessions & Multi-layer Memory -->
+  <aside class="sidebar">
+    <div class="sidebar-top">
+      <button id="newChatBtn" class="btn-new-chat" type="button">＋ 新規チャット</button>
+    </div>
+
+    <div class="sidebar-section-title">チャット履歴</div>
+    <div id="sessionList" class="session-list"></div>
+
+    <div class="sidebar-section-title">セッションフォルダ構成</div>
+    <div id="sessionTreeContainer" class="tree-container">
+      <div style="padding:8px; font-size:12px; color:var(--text-muted);">チャットを選択すると構成が表示されます</div>
+    </div>
+
+    <div class="sidebar-section-title">グローバル記憶 (memory/)</div>
+    <div class="memory-nav" id="memoryNav">
+      <button class="memory-btn" data-file="rule.md" type="button"><span>📜 rule.md</span><span>編集</span></button>
+      <button class="memory-btn" data-file="profile.md" type="button"><span>👤 profile.md</span><span>編集</span></button>
+      <button class="memory-btn" data-file="memory.md" type="button"><span>🧠 memory.md</span><span>編集</span></button>
+    </div>
+  </aside>
+
+  <!-- Center Main Chat Area -->
+  <section class="main-area">
+    <header class="chat-header">
+      <div class="header-left">
+        <span class="brand-dot"></span>
+        <span>クリスタルLM</span>
+      </div>
+      <div class="header-controls">
+        <div id="lmBadge" class="status-pill disconnected">
+          <span class="dot"></span>
+          <span id="lmBadgeText">確認中...</span>
+        </div>
+        <select id="modelSelect" class="model-select" title="LM Studio モデル選択">
+          <option value="">(自動選択)</option>
+        </select>
+        <button id="refreshModelsBtn" class="btn-sm" type="button">更新</button>
+        <button id="openWorkspaceViewerBtn" class="btn-sm" type="button" title="セッション配下の全フォルダ・生成ファイルをリアルタイム閲覧">📂 ワークスペース閲覧（Files）</button>
+        <span id="stepBadge" class="step-badge">Step 0 / ∞</span>
+      </div>
+    </header>
+
+    <div id="chatScroll" class="chat-scroll">
+      <div id="chatContainer" class="chat-container">
+        <div class="welcome-box">
+          <h2>クリスタルLM</h2>
+          <p>
+            クリスタルLM（CrystalLM）は LM Studio と連携し、多層永続メモリ（<code>memory/</code>）と自律ツール実行を備えたAIエージェントです。<br />
+            下の入力欄から質問やタスクを送信してください。
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="input-dock">
+      <div class="input-box">
+        <div id="slashAutocomplete" class="slash-autocomplete" role="listbox" aria-label="スラッシュコマンド候補"></div>
+        <textarea id="chatInput" rows="1" placeholder="メッセージやタスクを入力 (/ でモード選択・Enterで送信 / Shift+Enterで改行)..."></textarea>
+        <div class="input-actions">
+          <div class="input-meta">
+            <span>モード:</span>
+            <select id="modeSelect" class="mode-select" title="実行モード">
+              <option value="fastthink">高速応答 (/fastthink)</option>
+              <option value="normal" selected>通常 (/normal)</option>
+              <option value="longthink">深層思考 (/longthink)</option>
+              <option value="ultrathink">超推論 (/ultrathink)</option>
+            </select>
+            <span id="stepLimitPill" class="step-badge" title="自律モードはステップ上限なし（停止またはD1最終エスカレーションまで継続）">ステップ: ∞ (無制限)</span>
+            <span>D1 Supervisor:</span>
+            <select id="supervisorModelInput" class="model-select" title="2連続停滞検知・各ステップの4モデルルーティング担当 (D1 Supervisor)" style="max-width:155px;">
+              <option value="">(自動検出)</option>
+            </select>
+            <span>LFM3-Coder (Pure Code):</span>
+            <select id="coderModelInput" class="model-select" title="純粋プログラミング専任・非JSON [WRITE_FILE: ...] 形式特化 (LFM3-Coder)" style="max-width:175px;">
+              <option value="">(自動検出)</option>
+            </select>
+            <span>LFM3 1.7B (Tool &amp; Admin):</span>
+            <select id="standardModelInput" class="model-select" title="JSON形式ツール実行・事務整理・GLOBAL_INDEX/fact転記専任 (LFM3 1.7B)" style="max-width:165px;">
+              <option value="">(自動検出)</option>
+            </select>
+            <span>API:</span>
+            <input id="lmUrlInput" type="text" value="http://localhost:1234/v1" style="width:155px;" />
+          </div>
+          <div class="action-btns">
+            <button id="stopBtn" class="btn-stop" type="button" disabled>■ 停止</button>
+            <button id="sendBtn" class="btn-send" type="button">送信</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Right Panel: Live Plan & Workspace Files -->
+  <aside class="right-panel">
+    <div id="rightPanelHeader" class="right-header">進行中の計画 (plan.md)</div>
+    <div class="right-body">
+      <div id="ultrathinkStatusPanel" class="ut-panel">
+        <div class="ut-panel-header">
+          <span>⚡ UltraThink 状態</span>
+          <span id="utGearBadge" class="ut-gear-badge idle">IDLE</span>
+        </div>
+        <div class="ut-stats-grid">
+          <div class="ut-stat-box">
+            <div id="utCountUnverified" class="ut-stat-val">0</div>
+            <div class="ut-stat-lbl">UNVERIFIED</div>
+          </div>
+          <div class="ut-stat-box">
+            <div id="utCountVerified" class="ut-stat-val" style="color:#4ade80;">0</div>
+            <div class="ut-stat-lbl">VERIFIED</div>
+          </div>
+          <div class="ut-stat-box">
+            <div id="utCountRejected" class="ut-stat-val" style="color:#f87171;">0</div>
+            <div class="ut-stat-lbl">REJECTED</div>
+          </div>
+          <div class="ut-stat-box">
+            <div id="utCountKb" class="ut-stat-val" style="color:#38bdf8;">0</div>
+            <div class="ut-stat-lbl">KB結晶</div>
+          </div>
+        </div>
+        <div class="ut-meta-row">
+          <div>Temp: <span id="utTempLabel">0.3</span> | Active: <span id="utActiveCount">0</span> | Archive: <span id="utArchiveCount">0</span></div>
+          <div>Focus: <span id="utFocusFiles">-</span></div>
+          <div>Git: <span id="utLastCommit">-</span></div>
+        </div>
+      </div>
+      <div id="planContainer" class="plan-card">
+        <div style="color:var(--text-muted); font-size:12px;">計画はまだありません。</div>
+      </div>
+
+      <div class="right-header" style="padding:10px 0 6px; border-top:1px solid var(--border); border-bottom:none; display:flex; align-items:center; justify-content:space-between; gap:8px;">
+        <span>ワークスペース (workspace/)</span>
+        <button id="openWorkspaceViewerRightBtn" class="btn-sm" type="button" style="padding:2px 8px; font-size:11px;">📂 閲覧</button>
+      </div>
+      <div id="filesContainer" class="plan-card">
+        <div style="color:var(--text-muted); font-size:12px;">ファイルはありません。</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Memory Editor / File Preview Modal -->
+  <div id="editorModal" class="modal-backdrop">
+    <div class="modal">
+      <div class="modal-header">
+        <span id="modalTitle">memory/rule.md</span>
+        <button id="closeModalBtn" class="btn-sm" type="button">閉じる</button>
+      </div>
+      <div class="modal-body">
+        <textarea id="modalEditor" class="modal-editor"></textarea>
+      </div>
+      <div class="modal-footer" id="modalFooter">
+        <button id="saveMemoryBtn" class="btn-send" type="button">保存する</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Workspace Viewer Modal (2-Pane Tree + Real-Time UTF-8 Content Preview) -->
+  <div id="workspaceViewerModal" class="modal-backdrop">
+    <div class="modal viewer-modal">
+      <div class="modal-header">
+        <span id="viewerModalTitle">📂 ワークスペース閲覧（Files）</span>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <button id="viewerRefreshBtn" class="btn-sm" type="button">🔄 更新</button>
+          <button id="closeViewerModalBtn" class="btn-sm" type="button">閉じる</button>
+        </div>
+      </div>
+      <div class="viewer-body">
+        <div id="viewerTreePane" class="viewer-tree-pane">
+          <div style="padding:8px; font-size:12px; color:var(--text-muted);">セッションを選択または開始するとファイルツリーを表示します。</div>
+        </div>
+        <div class="viewer-preview-pane">
+          <div class="viewer-preview-bar">
+            <span id="viewerSelectedPath" class="viewer-preview-path">左のツリーからファイルを選択してください</span>
+            <span id="viewerSelectedMeta" style="color:var(--text-muted); flex-shrink:0;"></span>
+          </div>
+          <pre id="viewerPreviewCode" class="viewer-preview-code">（左のファイルツリーから `NORTH_STAR.md`・`GLOBAL_INDEX.md`・`10_active_workspace/` 内のスクリプト等をクリックすると、UTF-8 テキスト内容をリアルタイム表示します）</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const el = (id) => document.getElementById(id);
+
+    let currentSessionId = null;
+    let runningSessionId = null;
+    let activeTurnId = null;
+    const finishedTurnIds = new Set();
+    let isRunning = false;
+    let liveThinkingLogs = [];
+    let liveAssistantNode = null;
+    let editingMemoryFile = null;
+    let editingSessionFile = null;
+    let eventSource = null;
+    let phaseTimerInterval = null;
+    let phaseStartTime = 0;
+    let currentPhaseInfo = null;
+    let livePollInterval = null;
+    let parallelTimerInterval = null;
+    const parallelWorkerStartMs = new Map();
+    let lastUltrathinkStatus = null;
+    const SLASH_COMMANDS = [
+      { cmd: "/fastthink", mode: "fastthink", maxStepsLabel: "Fast (1-turn / think 3000)", desc: "高速応答モード（単発応答・思考3000制限）" },
+      { cmd: "/normal", mode: "normal", maxStepsLabel: "∞ steps", desc: "通常モード（ステップ無制限・D1監視付）" },
+      { cmd: "/longthink", mode: "longthink", maxStepsLabel: "∞ steps", desc: "深層思考モード（並列Worker・ステップ無制限）" },
+      { cmd: "/ultrathink", mode: "ultrathink", maxStepsLabel: "∞ steps", desc: "超推論モード（LFM3原子ファイル探索・ステップ無制限）" }
+    ];
+
+    function formatStepBadgeText(stepNum, maxSteps, modeVal) {
+      const s = Number(stepNum || 0);
+      if (modeVal === "fastthink" || Number(maxSteps) === 1) {
+        return `Step ${s} / 1 (Fast)`;
+      }
+      if (!maxSteps || Number(maxSteps) <= 0) {
+        return `Step ${s} / ∞`;
+      }
+      return `Step ${s} / ${maxSteps}`;
+    }
+
+    function syncModeLimitUI(modeVal) {
+      const pill = el("stepLimitPill");
+      if (pill) {
+        pill.textContent = modeVal === "fastthink" ? "単発応答 (Fast)" : "ステップ: ∞ (無制限)";
+      }
+    }
+    let slashAcMatches = [];
+    let slashAcIndex = 0;
+
+    function updateUltrathinkLivePill(ut) {
+      if (!liveAssistantNode || !ut || !ut.enabled) return;
+      const utSlot = liveAssistantNode.querySelector(".turn-ut-slot");
+      if (!utSlot) return;
+      let pill = utSlot.querySelector("#utLivePill");
+      if (!pill) {
+        pill = document.createElement("div");
+        pill.id = "utLivePill";
+        utSlot.prepend(pill);
+      }
+      const gear = String(ut.gear || "IDLE").toUpperCase();
+      const gearMap = {
+        HIGH: { cls: "high", label: "🔥 HIGH GEAR" },
+        LOW: { cls: "low", label: "⚡ LOW GEAR" },
+        GC: { cls: "gc", label: "💎 GC結晶化" },
+        IDLE: { cls: "idle", label: "⏸ IDLE" },
+      };
+      const meta = gearMap[gear] || gearMap.IDLE;
+      pill.className = `ut-live-pill ut-gear-badge ${meta.cls}`;
+      pill.textContent = `${meta.label} • 未検証 ${ut.unverified ?? 0} / 検証済 ${ut.verified ?? 0} / 棄却 ${ut.rejected ?? 0} / KB ${ut.knowledge_facts ?? 0}`;
+    }
+
+    function renderUltrathinkStatus(ut) {
+      const panel = el("ultrathinkStatusPanel");
+      const header = el("rightPanelHeader");
+      if (!panel) return;
+
+      if (!ut || !ut.enabled) {
+        lastUltrathinkStatus = null;
+        panel.classList.remove("active");
+        if (header) header.textContent = "進行中の計画 (plan.md)";
+        if (liveAssistantNode) {
+          const oldPill = liveAssistantNode.querySelector("#utLivePill");
+          if (oldPill) oldPill.remove();
+        }
+        return;
+      }
+
+      const merged = { ...ut };
+      if (
+        merged.gear === "IDLE" &&
+        lastUltrathinkStatus &&
+        isRunning &&
+        runningSessionId === currentSessionId &&
+        lastUltrathinkStatus.gear &&
+        lastUltrathinkStatus.gear !== "IDLE"
+      ) {
+        merged.gear = lastUltrathinkStatus.gear;
+        if (lastUltrathinkStatus.temperature !== undefined) {
+          merged.temperature = lastUltrathinkStatus.temperature;
+        }
+        if ((!Array.isArray(merged.focus_files) || merged.focus_files.length === 0) && Array.isArray(lastUltrathinkStatus.focus_files)) {
+          merged.focus_files = lastUltrathinkStatus.focus_files;
+        }
+      }
+      lastUltrathinkStatus = merged;
+
+      panel.classList.add("active");
+      if (header) header.textContent = "GLOBAL_INDEX / 進行計画";
+
+      const gear = String(merged.gear || "IDLE").toUpperCase();
+      const gearMap = {
+        HIGH: { cls: "high", label: "🔥 HIGH GEAR (創造・検証)" },
+        LOW: { cls: "low", label: "⚡ LOW GEAR (台帳更新)" },
+        GC: { cls: "gc", label: "💎 GC 結晶化" },
+        IDLE: { cls: "idle", label: "⏸ IDLE" },
+      };
+      const meta = gearMap[gear] || gearMap.IDLE;
+
+      const badge = el("utGearBadge");
+      if (badge) {
+        badge.className = `ut-gear-badge ${meta.cls}`;
+        badge.textContent = meta.label;
+      }
+      if (el("utCountUnverified")) el("utCountUnverified").textContent = String(merged.unverified ?? 0);
+      if (el("utCountVerified")) el("utCountVerified").textContent = String(merged.verified ?? 0);
+      if (el("utCountRejected")) el("utCountRejected").textContent = String(merged.rejected ?? 0);
+      if (el("utCountKb")) el("utCountKb").textContent = String(merged.knowledge_facts ?? 0);
+      if (el("utTempLabel")) {
+        const tempVal = merged.temperature !== undefined && merged.temperature !== null
+          ? Number(merged.temperature)
+          : (gear === "HIGH" ? 0.3 : 0.0);
+        el("utTempLabel").textContent = tempVal.toFixed(1);
+      }
+      if (el("utActiveCount")) el("utActiveCount").textContent = String(merged.active_files ?? 0);
+      if (el("utArchiveCount")) el("utArchiveCount").textContent = String(merged.archived_files ?? 0);
+      if (el("utFocusFiles")) {
+        el("utFocusFiles").textContent =
+          Array.isArray(merged.focus_files) && merged.focus_files.length > 0
+            ? merged.focus_files.slice(0, 2).join(", ")
+            : "-";
+      }
+      if (el("utLastCommit")) el("utLastCommit").textContent = merged.last_commit || "-";
+
+      updateUltrathinkLivePill(merged);
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+    }
+
+    function renderMarkdown(mdText) {
+      if (window.marked) {
+        marked.setOptions({ breaks: true, gfm: true });
+        return marked.parse(mdText || "");
+      }
+      return `<pre style="white-space:pre-wrap;">${escapeHtml(mdText || "")}</pre>`;
+    }
+
+    function enhanceCodeBlocks(container) {
+      container.querySelectorAll("pre code").forEach((block) => {
+        if (window.hljs) {
+          hljs.highlightElement(block);
+        }
+        const pre = block.parentElement;
+        if (!pre.querySelector(".copy-code-btn")) {
+          const btn = document.createElement("button");
+          btn.className = "copy-code-btn";
+          btn.type = "button";
+          btn.textContent = "コピー";
+          btn.addEventListener("click", async () => {
+            await navigator.clipboard.writeText(block.textContent);
+            btn.textContent = "コピー済み";
+            setTimeout(() => (btn.textContent = "コピー"), 1500);
+          });
+          pre.appendChild(btn);
+        }
+      });
+    }
+
+    let currentLiveStepEl = null;
+
+    function finalizeCurrentPhaseStep() {
+      if (phaseTimerInterval) {
+        clearInterval(phaseTimerInterval);
+        phaseTimerInterval = null;
+      }
+      if (currentLiveStepEl && currentLiveStepEl.parentNode) {
+        currentLiveStepEl.remove();
+      }
+      currentLiveStepEl = null;
+      currentPhaseInfo = null;
+    }
+
+    function startPhaseTimer(phase, step, label, initialElapsedSeconds = 0) {
+      if (!liveAssistantNode) return;
+      if (
+        currentPhaseInfo &&
+        currentPhaseInfo.phase === phase &&
+        currentPhaseInfo.step === step &&
+        currentPhaseInfo.label === label
+      ) {
+        return;
+      }
+
+      finalizeCurrentPhaseStep();
+
+      const phaseSlot = liveAssistantNode.querySelector(".turn-live-phase");
+      if (!phaseSlot) return;
+
+      const offsetMs = Math.max(0, Number(initialElapsedSeconds) || 0) * 1000;
+      currentPhaseInfo = { phase, step, label };
+      phaseStartTime = performance.now() - offsetMs;
+
+      const bar = document.createElement("div");
+      bar.className = `live-status-bar ${phase === "working" ? "working" : ""}`;
+      phaseSlot.appendChild(bar);
+      currentLiveStepEl = bar;
+
+      renderLivePhase();
+      phaseTimerInterval = setInterval(renderLivePhase, 100);
+      scrollToBottom();
+    }
+
+    function stopPhaseTimer() {
+      finalizeCurrentPhaseStep();
+    }
+
+    function stopParallelWorkersTimer() {
+      if (parallelTimerInterval) {
+        clearInterval(parallelTimerInterval);
+        parallelTimerInterval = null;
+      }
+    }
+
+    function startParallelWorkersTimer() {
+      if (parallelTimerInterval) return;
+      parallelTimerInterval = setInterval(() => {
+        const runningEls = document.querySelectorAll('.turn-steps-timeline .worker-timer[data-running="true"]');
+        if (runningEls.length === 0) {
+          stopParallelWorkersTimer();
+          return;
+        }
+        const now = performance.now();
+        runningEls.forEach((node) => {
+          const startMs = Number(node.dataset.startMs || now);
+          const sec = Math.max(0, (now - startMs) / 1000).toFixed(1);
+          node.textContent = `${sec}s`;
+        });
+      }, 100);
+    }
+
+    function renderParallelBatchCardsHtml(batch, isLiveTimeline = false) {
+      const workers = Array.isArray(batch && batch.workers) ? batch.workers : [];
+      const isDone = batch && batch.status === "completed";
+      const batchDur = Number((batch && batch.duration) || 0).toFixed(1);
+      const headerLeft = isDone
+        ? `⚡ Worker 完了 (${workers.length}件 / ${batchDur}s)`
+        : `⚡ Worker 稼働中 (${workers.length}件 / Parallel = 1)`;
+
+      const cardsHtml = workers.map((w) => {
+        const st = w.status || "thinking";
+        const running = st !== "completed" && st !== "error";
+        const key = `${batch.batch_id || "batch"}:${w.agent_id}`;
+        const serverDur = Math.max(0, Number(w.duration || 0));
+        if (running) {
+          if (!parallelWorkerStartMs.has(key)) {
+            parallelWorkerStartMs.set(key, performance.now() - serverDur * 1000);
+          }
+        } else {
+          parallelWorkerStartMs.delete(key);
+        }
+        const startMs = parallelWorkerStartMs.get(key) || performance.now();
+        const timerText = `${serverDur.toFixed(1)}s`;
+        let badgeText = "💭 推論中";
+        if (st === "working") badgeText = "🔧 作業中";
+        else if (st === "completed") badgeText = "✅ 完了";
+        else if (st === "error") badgeText = "❌ エラー";
+
+        const detailText = (st === "completed" && w.conclusion) ? w.conclusion : (w.detail || "");
+        return `
+          <div class="worker-card ${escapeHtml(st)}">
+            <div class="worker-card-top">
+              <span class="worker-name">${escapeHtml(w.display_name || w.agent_id)}</span>
+              <span class="worker-timer" ${isLiveTimeline && running ? `data-running="true" data-start-ms="${startMs}"` : ""}>${timerText}</span>
+            </div>
+            <span class="worker-badge">${badgeText}</span>
+            <div class="worker-task" title="${escapeHtml(w.task_title || "")}">${escapeHtml(w.task_title || "")}</div>
+            <div class="worker-detail" title="${escapeHtml(detailText)}">${escapeHtml(detailText)}</div>
+          </div>
+        `;
+      }).join("");
+
+      return `
+        <div class="parallel-batch-header">
+          <span>${escapeHtml(headerLeft)}</span>
+          <span class="step-tag">Step ${batch.step || "-"}</span>
+        </div>
+        <div class="parallel-workers-grid">${cardsHtml}</div>
+      `;
+    }
+
+    function upsertParallelWorkersInLogs(logs, batch) {
+      if (!Array.isArray(logs) || !batch || !batch.batch_id) return logs;
+      const entry = { type: "parallel_workers", ...batch };
+      const idx = logs.findIndex((x) => x.type === "parallel_workers" && x.batch_id === batch.batch_id);
+      if (idx >= 0) {
+        logs[idx] = entry;
+      } else {
+        logs.push(entry);
+      }
+      return logs;
+    }
+
+    function renderLivePhase() {
+      if (!currentLiveStepEl || !currentPhaseInfo) return;
+      const elapsed = ((performance.now() - phaseStartTime) / 1000).toFixed(1);
+      const isWorking = currentPhaseInfo.phase === "working";
+      const prefix = isWorking ? "Worked for" : "Thinking for";
+      currentLiveStepEl.innerHTML = `
+        <span class="live-spinner"></span>
+        <span>${prefix} ${elapsed}s... (Step ${currentPhaseInfo.step}: ${escapeHtml(currentPhaseInfo.label)})</span>
+      `;
+    }
+
+    function buildStepDetailSpec(item, idx, isLiveTimeline = false) {
+      if (!item || !item.type) return null;
+      const stepNum = item.step || "-";
+
+      if (item.type === "thinking") {
+        const dur = item.duration !== undefined && item.duration !== null ? `${Number(item.duration).toFixed(1)}s` : "";
+        const summaryText = dur ? `💭 Thinking for ${dur} (Step ${stepNum})` : `💭 Thinking (Step ${stepNum})`;
+        const content = item.content || "";
+        return {
+          key: `idx:${idx}:thinking:${stepNum}`,
+          cls: "step-detail thinking",
+          summaryText,
+          titleText: summaryText,
+          stepTag: `Step ${stepNum}`,
+          bodyHtml: escapeHtml(content),
+          defaultOpen: false,
+          digest: `thinking|${summaryText}|${content.length}|${content.slice(0, 64)}`,
+        };
+      }
+
+      if (item.type === "work") {
+        const dur = item.duration !== undefined && item.duration !== null ? `${Number(item.duration).toFixed(1)}s` : "";
+        const toolName = item.tool || "tool";
+        const detailLabel = item.label || toolName;
+        const summaryText = dur ? `🔧 Worked for ${dur} (${toolName})` : `🔧 Worked (${toolName})`;
+        const argsJson = JSON.stringify(item.arguments || {}, null, 2);
+        const resStr = item.result || "";
+        const labelHtml = detailLabel && detailLabel !== toolName
+          ? `<div class="log-label" style="margin-bottom:6px; color:var(--text-main);">${escapeHtml(detailLabel)}</div>`
+          : "";
+        return {
+          key: `idx:${idx}:work:${stepNum}:${toolName}`,
+          cls: "step-detail work",
+          summaryText,
+          titleText: `${summaryText} — ${detailLabel}`,
+          stepTag: `Step ${stepNum}`,
+          bodyHtml: `${labelHtml}<div class="log-label">引数 (${escapeHtml(toolName)})</div><pre class="log-pre">${escapeHtml(argsJson)}</pre><div class="log-label" style="margin-top:8px;">実行結果</div><pre class="log-pre">${escapeHtml(resStr)}</pre>`,
+          defaultOpen: false,
+          digest: `work|${summaryText}|${argsJson.length}|${resStr.length}`,
+        };
+      }
+
+      if (item.type === "parallel_workers") {
+        const workers = Array.isArray(item.workers) ? item.workers : [];
+        const isDone = item.status === "completed";
+        const dur = item.duration !== undefined && item.duration !== null ? `${Number(item.duration).toFixed(1)}s` : "";
+        const summaryText = isDone
+          ? (dur ? `⚡ Worked for ${dur} (parallel_workers: ${workers.length}体)` : `⚡ Worked (parallel_workers: ${workers.length}体)`)
+          : `⚡ Running parallel_workers (${workers.length}体)`;
+        const batchKey = item.batch_id ? `parallel:${item.batch_id}` : `idx:${idx}:parallel:${stepNum}`;
+        const workerSig = workers.map((w) => `${w.agent_id}:${w.status}:${(w.detail || "").length}:${(w.conclusion || "").length}`).join(",");
+        return {
+          key: batchKey,
+          cls: "step-detail work",
+          summaryText,
+          titleText: summaryText,
+          stepTag: `Step ${stepNum}`,
+          bodyHtml: renderParallelBatchCardsHtml(item, isLiveTimeline && !isDone),
+          defaultOpen: Boolean(isLiveTimeline && !isDone),
+          digest: `parallel|${item.status || ""}|${dur}|${workerSig}`,
+          hasRunningWorkers: Boolean(isLiveTimeline && !isDone && workers.some((w) => w.status !== "completed" && w.status !== "error")),
+        };
+      }
+
+      if (item.type === "step_output") {
+        const content = item.content || "";
+        const summaryText = `💬 Intermediate Output (Step ${stepNum})`;
+        return {
+          key: `idx:${idx}:step_output:${stepNum}`,
+          cls: "step-detail step-output",
+          summaryText,
+          titleText: summaryText,
+          stepTag: `Step ${stepNum}`,
+          bodyHtml: escapeHtml(content),
+          defaultOpen: false,
+          digest: `step_output|${content.length}|${content.slice(0, 64)}`,
+        };
+      }
+
+      if (item.type === "tool_call") {
+        const toolName = item.tool || "tool";
+        const summaryText = `🔧 Tool Call (${toolName})`;
+        const argsJson = JSON.stringify(item.arguments || {}, null, 2);
+        return {
+          key: `idx:${idx}:tool_call:${stepNum}:${toolName}`,
+          cls: "step-detail work",
+          summaryText,
+          titleText: summaryText,
+          stepTag: `Step ${stepNum}`,
+          bodyHtml: `<pre class="log-pre">${escapeHtml(argsJson)}</pre>`,
+          defaultOpen: false,
+          digest: `tool_call|${toolName}|${argsJson.length}`,
+        };
+      }
+
+      if (item.type === "tool_result") {
+        const toolName = item.tool || "tool";
+        const resStr = item.result || "";
+        const summaryText = `✅ Tool Result (${toolName})`;
+        return {
+          key: `idx:${idx}:tool_result:${stepNum}:${toolName}`,
+          cls: "step-detail work",
+          summaryText,
+          titleText: summaryText,
+          stepTag: `Step ${stepNum}`,
+          bodyHtml: `<pre class="log-pre">${escapeHtml(resStr)}</pre>`,
+          defaultOpen: false,
+          digest: `tool_result|${toolName}|${resStr.length}`,
+        };
+      }
+
+      if (item.type === "d1_coder_route") {
+        const rawChoice = String(item.coder_choice || "main_model");
+        let roleLabel = item.role_label || "";
+        if (!roleLabel) {
+          if (rawChoice === "lfm3_coder_claude" || rawChoice === "lfm3_coder") {
+            roleLabel = "LFM3-Coder";
+          } else if (rawChoice === "lfm3_standard") {
+            roleLabel = "LFM3 1.7B (Admin/Tool)";
+          } else {
+            roleLabel = "Main Model";
+          }
+        }
+        const chosenModel = item.selected_model || roleLabel;
+        const supModel = item.supervisor_model || "d1-2B";
+        const reasonText = item.reason || "";
+        const useJson = item.use_json_tools !== undefined ? Boolean(item.use_json_tools) : (rawChoice !== "lfm3_coder_claude" && rawChoice !== "lfm3_coder");
+        const modeLabel = useJson ? "JSON Tool / 推論統合" : "非JSON ([WRITE_FILE: ...] コード生成専任)";
+        const ctxNote = item.context_label
+          ? `<div class="d1-diag-item"><strong>対象ステップ:</strong><span>${escapeHtml(item.context_label)}</span></div>`
+          : "";
+        const summaryText = `🧭 [D1-2B Router] ${roleLabel} に振分 (${chosenModel})`;
+        return {
+          key: `idx:${idx}:d1_coder_route:${stepNum}:${roleLabel}:${chosenModel}`,
+          cls: "step-detail d1-coder-route",
+          summaryText,
+          titleText: `${summaryText} (${reasonText})`,
+          stepTag: `Step ${stepNum} (${supModel} → ${roleLabel})`,
+          bodyHtml: `
+            <div class="d1-diag-grid">
+              ${ctxNote}
+              <div class="d1-diag-item"><strong>担当ロール:</strong><span>${escapeHtml(roleLabel)} (${escapeHtml(rawChoice)})</span></div>
+              <div class="d1-diag-item"><strong>使用モデル:</strong><span>${escapeHtml(chosenModel)}</span></div>
+              <div class="d1-diag-item"><strong>出力方式:</strong><span>${escapeHtml(modeLabel)}</span></div>
+              <div class="d1-diag-item"><strong>振り分け理由:</strong><span>${escapeHtml(reasonText)}</span></div>
+            </div>
+          `,
+          defaultOpen: false,
+          digest: `d1_coder_route|${stepNum}|${roleLabel}|${chosenModel}|${reasonText}`,
+        };
+      }
+
+      if (item.type === "trash_isolation") {
+        const promoted = Array.isArray(item.promoted_files) ? item.promoted_files : [];
+        const trashed = Array.isArray(item.trashed_files) ? item.trashed_files : [];
+        const trashedCount = Number(item.trashed_count !== undefined ? item.trashed_count : trashed.length);
+        const trashPath = item.trash_path || `trash_bin/task_${item.task_id || stepNum}`;
+        const destLabel = item.promoted_dest || "shared_workspace/final_artifacts/";
+        const summaryText = `🗑️ 仮ファイルを trash_bin へ隔離完了 (昇格: ${promoted.length}件 / ゴミ箱: ${trashedCount}件)`;
+        return {
+          key: `idx:${idx}:trash_isolation:${stepNum}:${item.task_id || ""}`,
+          cls: "step-detail trash-isolation",
+          summaryText,
+          titleText: summaryText,
+          stepTag: `Step ${stepNum} (${trashPath})`,
+          bodyHtml: `
+            <div class="d1-diag-grid">
+              <div class="d1-diag-item"><strong>正規成果物昇格先:</strong><span>${escapeHtml(destLabel)}</span></div>
+              <div class="d1-diag-item"><strong>昇格ファイル (${promoted.length}件):</strong><span>${escapeHtml(promoted.length ? promoted.join(", ") : "(なし)")}</span></div>
+              <div class="d1-diag-item"><strong>ゴミ箱隔離先:</strong><span>${escapeHtml(trashPath)} (${trashedCount}件)</span></div>
+              <div class="d1-diag-item"><strong>移動した仮ファイル:</strong><span>${escapeHtml(trashed.length ? trashed.join(", ") : "(なし)")}</span></div>
+            </div>
+          `,
+          defaultOpen: false,
+          digest: `trash_isolation|${stepNum}|${item.task_id || ""}|${promoted.length}|${trashedCount}`,
+        };
+      }
+
+      if (item.type === "d1_supervisor") {
+        const supModel = item.supervisor_model || "d1-2B";
+        const stuckReason = item.stuck_reason || "";
+        const forbiddenAction = item.forbidden_action || "";
+        const newStrategy = item.new_strategy || "";
+        const intCnt = Number(item.intervention_count || 1);
+        const isEscalated = Boolean(item.escalate_to_user);
+        const isThinkUnlocked = Boolean(item.think_unlocked);
+        const summaryText = isEscalated
+          ? `🛑 [D1-2B Supervisor] 完全停滞 (${intCnt}回目) → ユーザー相談のため停止`
+          : (isThinkUnlocked && intCnt === 5
+              ? `🔓 [D1-2B Supervisor] 累計${intCnt}回介入 → 思考トークン上限を無制限解除`
+              : `⚡ [D1-2B Supervisor] 2連続停滞を検知（${intCnt}回目）→ 戦略強制変更`);
+        const ctxNote = item.context_label
+          ? `<div class="d1-diag-item"><strong>検知箇所:</strong><span>${escapeHtml(item.context_label)}</span></div>`
+          : "";
+        const consultNote = item.user_consultation_message
+          ? `<div class="d1-diag-item"><strong>ユーザー相談報告:</strong><span>${escapeHtml(item.user_consultation_message)}</span></div>`
+          : "";
+        const jsonPreview = JSON.stringify(
+          {
+            intervention_count: intCnt,
+            think_unlocked: isThinkUnlocked,
+            escalate_to_user: isEscalated,
+            stuck_reason: stuckReason,
+            forbidden_action: forbiddenAction,
+            new_strategy: newStrategy,
+          },
+          null,
+          2
+        );
+        return {
+          key: `idx:${idx}:d1_supervisor:${stepNum}:${intCnt}`,
+          cls: isEscalated ? "step-detail d1-supervisor escalated" : "step-detail d1-supervisor",
+          summaryText,
+          titleText: `${summaryText} (${stuckReason})`,
+          stepTag: `Step ${stepNum} (${supModel})`,
+          bodyHtml: `
+            <div class="d1-diag-grid">
+              ${ctxNote}
+              <div class="d1-diag-item"><strong>診断理由:</strong><span>${escapeHtml(stuckReason)}</span></div>
+              <div class="d1-diag-item"><strong>禁止アクション:</strong><span>${escapeHtml(forbiddenAction)}</span></div>
+              <div class="d1-diag-item"><strong>強制新戦略:</strong><span>${escapeHtml(newStrategy)}</span></div>
+              ${consultNote}
+            </div>
+            <div class="log-label">構造化診断 JSON (${escapeHtml(supModel)})</div>
+            <pre class="log-pre">${escapeHtml(jsonPreview)}</pre>
+          `,
+          defaultOpen: isEscalated,
+          digest: `d1_supervisor|${stepNum}|${intCnt}|${isEscalated}|${stuckReason}|${newStrategy}`,
+        };
+      }
+
+      if (item.type === "direct_burst") {
+        const isDone = item.status === "completed" || item.status === "failed";
+        const summaryText = isDone
+          ? `🚀 [Direct Burst] 思考スキップ＆出力無制限でコード生成完了 (${item.duration !== undefined ? Number(item.duration).toFixed(1) + "s / " : ""}${item.extracted || ""})`
+          : "🚀 [Direct Burst] 思考スキップ＆出力無制限でコード生成を実行中...";
+        const mdl = item.model || "";
+        const failDiag = item.failure_diag || "";
+        const diagErr = item.diagnostic || "";
+        return {
+          key: `idx:${idx}:direct_burst:${stepNum}`,
+          cls: "step-detail direct-burst",
+          summaryText,
+          titleText: summaryText,
+          stepTag: `Step ${stepNum} (max_tokens=-1)`,
+          bodyHtml: `
+            <div class="d1-diag-grid">
+              <div class="d1-diag-item"><strong>使用モデル:</strong><span>${escapeHtml(mdl)}</span></div>
+              <div class="d1-diag-item"><strong>発動契機:</strong><span>${escapeHtml(failDiag)}</span></div>
+              <div class="d1-diag-item"><strong>抽出対象:</strong><span>${escapeHtml(item.extracted || "(実行中)")}</span></div>
+              ${item.output_chars ? `<div class="d1-diag-item"><strong>生成サイズ:</strong><span>${item.output_chars} 文字</span></div>` : ""}
+              ${diagErr ? `<div class="d1-diag-item"><strong>診断:</strong><span>${escapeHtml(diagErr)}</span></div>` : ""}
+            </div>
+          `,
+          defaultOpen: !isDone,
+          digest: `direct_burst|${stepNum}|${item.status || ""}|${item.extracted || ""}|${item.output_chars || 0}`,
+        };
+      }
+
+      if (item.type === "warning") {
+        const msgStr = item.message || item.content || "";
+        const summaryText = `⚠️ Warning (Step ${stepNum})`;
+        return {
+          key: `idx:${idx}:warning:${stepNum}`,
+          cls: "step-detail warning",
+          summaryText,
+          titleText: summaryText,
+          stepTag: `Step ${stepNum}`,
+          bodyHtml: escapeHtml(msgStr),
+          defaultOpen: false,
+          digest: `warning|${msgStr.length}`,
+        };
+      }
+
+      return null;
+    }
+
+    function renderTurnStepsTimeline(timelineEl, logs, isLiveTimeline = false) {
+      if (!timelineEl) return;
+      if (!Array.isArray(logs) || logs.length === 0) {
+        timelineEl.innerHTML = "";
+        return;
+      }
+
+      const existingMap = new Map();
+      timelineEl.querySelectorAll("details.step-detail[data-log-key]").forEach((node) => {
+        existingMap.set(node.dataset.logKey, node);
+      });
+
+      const activeKeys = new Set();
+      let needParallelTimer = false;
+
+      logs.forEach((item, idx) => {
+        const spec = buildStepDetailSpec(item, idx, isLiveTimeline);
+        if (!spec) return;
+        activeKeys.add(spec.key);
+        if (spec.hasRunningWorkers) needParallelTimer = true;
+
+        let detailsEl = existingMap.get(spec.key);
+        if (detailsEl) {
+          if (detailsEl.dataset.digest !== spec.digest) {
+            const wasOpen = detailsEl.open;
+            const userToggled = detailsEl.dataset.userToggled === "true";
+            detailsEl.className = spec.cls;
+            const summaryTextEl = detailsEl.querySelector(".step-summary-text");
+            if (summaryTextEl) summaryTextEl.textContent = spec.summaryText;
+            const summaryEl = detailsEl.querySelector("summary");
+            if (summaryEl) summaryEl.title = spec.titleText || spec.summaryText;
+            const tagEl = detailsEl.querySelector(".step-tag");
+            if (tagEl) tagEl.textContent = spec.stepTag;
+            const bodyEl = detailsEl.querySelector(".step-detail-body");
+            if (bodyEl) bodyEl.innerHTML = spec.bodyHtml;
+            detailsEl.dataset.digest = spec.digest;
+            if (!userToggled && item.type === "parallel_workers" && item.status === "completed") {
+              detailsEl.open = false;
+            } else {
+              detailsEl.open = wasOpen;
+            }
+          }
+          timelineEl.appendChild(detailsEl);
+        } else {
+          detailsEl = document.createElement("details");
+          detailsEl.className = spec.cls;
+          detailsEl.dataset.logKey = spec.key;
+          detailsEl.dataset.digest = spec.digest;
+          if (spec.defaultOpen) detailsEl.open = true;
+          detailsEl.innerHTML = `
+            <summary title="${escapeHtml(spec.titleText || spec.summaryText)}">
+              <span class="step-summary-left">
+                <span class="step-arrow">▶</span>
+                <span class="step-summary-text">${escapeHtml(spec.summaryText)}</span>
+              </span>
+              <span class="step-tag">${escapeHtml(spec.stepTag)}</span>
+            </summary>
+            <div class="step-detail-body">${spec.bodyHtml}</div>
+          `;
+          const summaryEl = detailsEl.querySelector("summary");
+          if (summaryEl) {
+            summaryEl.addEventListener("click", () => {
+              detailsEl.dataset.userToggled = "true";
+            });
+          }
+          timelineEl.appendChild(detailsEl);
+        }
+      });
+
+      existingMap.forEach((node, key) => {
+        if (!activeKeys.has(key)) node.remove();
+      });
+
+      if (needParallelTimer) {
+        startParallelWorkersTimer();
+      }
+    }
+
+    function updateLiveStepsTimeline() {
+      if (!liveAssistantNode) return;
+      const timelineEl = liveAssistantNode.querySelector(".turn-steps-timeline");
+      if (!timelineEl) return;
+      renderTurnStepsTimeline(timelineEl, liveThinkingLogs, true);
+    }
+
+    function appendMessageToUI(msg) {
+      const container = el("chatContainer");
+      const welcome = container.querySelector(".welcome-box");
+      if (welcome) welcome.remove();
+
+      const row = document.createElement("div");
+      row.className = `msg-row ${msg.role}`;
+      if (msg && msg.id) {
+        row.dataset.msgId = String(msg.id);
+      }
+
+      if (msg.role === "user") {
+        row.innerHTML = `<div class="user-bubble">${escapeHtml(msg.content)}</div>`;
+      } else {
+        row.innerHTML = `
+          <div class="assistant-wrap">
+            <div class="turn-ut-slot"></div>
+            <div class="turn-steps-timeline"></div>
+            <div class="assistant-bubble">${renderMarkdown(msg.content)}</div>
+          </div>
+        `;
+        const timelineEl = row.querySelector(".turn-steps-timeline");
+        renderTurnStepsTimeline(timelineEl, msg.thinking_log || [], false);
+        enhanceCodeBlocks(row);
+      }
+
+      container.appendChild(row);
+      scrollToBottom();
+      return row;
+    }
+
+    function finalizeLiveAssistantWithMessage(msg) {
+      if (!msg) return;
+      const finalizedId = msg.id ? String(msg.id) : "";
+      const boundTurnId = (liveAssistantNode && liveAssistantNode.dataset.turnId) || activeTurnId || "";
+      if (finalizedId) {
+        finishedTurnIds.add(finalizedId);
+      }
+      if (boundTurnId && finalizedId && finalizedId !== boundTurnId) {
+        return;
+      }
+
+      const container = el("chatContainer");
+      if (finalizedId && container) {
+        const existingFinalized = Array.from(container.querySelectorAll(".msg-row.assistant")).find(
+          (n) => n !== liveAssistantNode && n.dataset.msgId === finalizedId
+        );
+        if (existingFinalized) {
+          if (liveAssistantNode) {
+            liveAssistantNode.remove();
+            liveAssistantNode = null;
+          }
+          activeTurnId = null;
+          return;
+        }
+      }
+
+      const openKeys = new Set();
+      if (liveAssistantNode) {
+        liveAssistantNode.querySelectorAll("details.step-detail[open][data-log-key]").forEach((d) => {
+          if (d.dataset.userToggled === "true") {
+            openKeys.add(d.dataset.logKey);
+          }
+        });
+        liveAssistantNode.remove();
+        liveAssistantNode = null;
+      }
+      activeTurnId = null;
+      const row = appendMessageToUI(msg);
+      if (row && openKeys.size > 0) {
+        row.querySelectorAll("details.step-detail[data-log-key]").forEach((d) => {
+          if (openKeys.has(d.dataset.logKey)) {
+            d.open = true;
+          }
+        });
+      }
+    }
+
+    function createLiveAssistantPlaceholder(turnId = "") {
+      const container = el("chatContainer");
+      const welcome = container.querySelector(".welcome-box");
+      if (welcome) welcome.remove();
+
+      if (liveAssistantNode) {
+        const stalePhase = liveAssistantNode.querySelector(".turn-live-phase");
+        if (stalePhase) stalePhase.remove();
+        liveAssistantNode = null;
+      }
+
+      currentLiveStepEl = null;
+      currentPhaseInfo = null;
+      liveThinkingLogs = [];
+
+      const row = document.createElement("div");
+      row.className = "msg-row assistant";
+      if (turnId) {
+        row.dataset.turnId = String(turnId);
+      }
+      row.innerHTML = `
+        <div class="assistant-wrap">
+          <div class="turn-ut-slot"></div>
+          <div class="turn-steps-timeline"></div>
+          <div class="turn-live-phase"></div>
+          <div class="assistant-bubble">
+            <div class="typing-indicator">⏳ 応答を待機しています...</div>
+          </div>
+        </div>
+      `;
+      container.appendChild(row);
+      liveAssistantNode = row;
+      startPhaseTimer("thinking", 1, "タスクを分析・推論中");
+      scrollToBottom();
+    }
+
+    function restoreLiveAssistantState(live, logs) {
+      const container = el("chatContainer");
+      const welcome = container.querySelector(".welcome-box");
+      if (welcome) welcome.remove();
+      if (liveAssistantNode) {
+        liveAssistantNode.remove();
+        liveAssistantNode = null;
+      }
+
+      const liveTurnId = (live && live.turn_id) ? String(live.turn_id) : "";
+      if (liveTurnId) {
+        activeTurnId = liveTurnId;
+      }
+
+      currentLiveStepEl = null;
+      currentPhaseInfo = null;
+      liveThinkingLogs = Array.isArray(logs) ? logs.slice() : [];
+      if (live && live.parallel_batch) {
+        upsertParallelWorkersInLogs(liveThinkingLogs, live.parallel_batch);
+      }
+
+      const row = document.createElement("div");
+      row.className = "msg-row assistant";
+      if (activeTurnId) {
+        row.dataset.turnId = String(activeTurnId);
+      }
+      row.innerHTML = `
+        <div class="assistant-wrap">
+          <div class="turn-ut-slot"></div>
+          <div class="turn-steps-timeline"></div>
+          <div class="turn-live-phase"></div>
+          <div class="assistant-bubble">
+            <div class="typing-indicator">⏳ 応答を待機しています...</div>
+          </div>
+        </div>
+      `;
+      container.appendChild(row);
+      liveAssistantNode = row;
+
+      const timeline = row.querySelector(".turn-steps-timeline");
+      renderTurnStepsTimeline(timeline, liveThinkingLogs, true);
+
+      if (live.ultrathink) {
+        renderUltrathinkStatus(live.ultrathink);
+      }
+
+      const activePhase = live.state || live.phase_state || "thinking";
+      const activeStep = live.step || live.current_step || 1;
+      const activeLabel = live.label || live.phase_label || "推論中";
+      const elapsedSec = live.elapsed_seconds || 0;
+      if (activePhase === "thinking" || activePhase === "working") {
+        startPhaseTimer(activePhase, activeStep, activeLabel, elapsedSec);
+      }
+      el("stepBadge").textContent = formatStepBadgeText(activeStep, live.max_steps, el("modeSelect") ? el("modeSelect").value : "");
+      scrollToBottom();
+    }
+
+    function scrollToBottom() {
+      const scroller = el("chatScroll");
+      scroller.scrollTop = scroller.scrollHeight;
+    }
+
+    function stopLivePolling() {
+      if (livePollInterval) {
+        clearInterval(livePollInterval);
+        livePollInterval = null;
+      }
+    }
+
+    function startLivePolling() {
+      if (livePollInterval) return;
+      livePollInterval = setInterval(async () => {
+        if (!isRunning) {
+          stopLivePolling();
+          return;
+        }
+        try {
+          const res = await fetch("/api/live");
+          if (!res.ok) return;
+          const live = await res.json();
+          const liveTurnId = live.turn_id ? String(live.turn_id) : "";
+          if (liveTurnId && finishedTurnIds.has(liveTurnId)) {
+            return;
+          }
+          if (activeTurnId && liveTurnId && liveTurnId !== activeTurnId) {
+            return;
+          }
+          if (!activeTurnId && liveTurnId && live.is_running) {
+            activeTurnId = liveTurnId;
+            if (liveAssistantNode) liveAssistantNode.dataset.turnId = activeTurnId;
+          }
+          runningSessionId = live.running_session_id || live.session_id || runningSessionId;
+          el("stepBadge").textContent = formatStepBadgeText(live.current_step || 0, live.max_steps, el("modeSelect") ? el("modeSelect").value : "");
+
+          const viewingRunningSession = Boolean(currentSessionId && currentSessionId === live.session_id);
+
+          if (viewingRunningSession) {
+            if (!liveAssistantNode && live.is_running) {
+              restoreLiveAssistantState(live, live.thinking_log || []);
+            } else if (liveAssistantNode) {
+              const serverLogs = Array.isArray(live.thinking_log) ? live.thinking_log : [];
+              if (serverLogs.length >= liveThinkingLogs.length || live.parallel_batch) {
+                const nextLogs = serverLogs.length >= liveThinkingLogs.length
+                  ? serverLogs.slice()
+                  : liveThinkingLogs.slice();
+                if (live.parallel_batch) {
+                  upsertParallelWorkersInLogs(nextLogs, live.parallel_batch);
+                }
+                liveThinkingLogs = nextLogs;
+                updateLiveStepsTimeline();
+              }
+              if (live.phase_state === "thinking" || live.phase_state === "working") {
+                startPhaseTimer(
+                  live.phase_state,
+                  live.current_step || 1,
+                  live.phase_label || "",
+                  live.elapsed_seconds || 0
+                );
+              }
+            }
+            if (live.ultrathink) {
+              renderUltrathinkStatus(live.ultrathink);
+            }
+          }
+
+          const completedMsg = live.last_completed_message;
+          const completedId = completedMsg && completedMsg.id ? String(completedMsg.id) : "";
+          const completedMatchesTurn = Boolean(
+            completedMsg && (!activeTurnId || !completedId || completedId === activeTurnId)
+          );
+          if ((live.status === "completed" || live.status === "stopped" || live.status === "paused") && completedMatchesTurn) {
+            stopPhaseTimer();
+            stopLivePolling();
+            if (viewingRunningSession && liveAssistantNode) {
+              finalizeLiveAssistantWithMessage(completedMsg);
+              liveThinkingLogs = [];
+            }
+            activeTurnId = null;
+            runningSessionId = null;
+            setRunningState(false);
+            refreshSessions();
+          } else if (live.status === "error") {
+            stopPhaseTimer();
+            stopLivePolling();
+            if (viewingRunningSession && liveAssistantNode) {
+              const bubble = liveAssistantNode.querySelector(".assistant-bubble");
+              if (bubble) {
+                bubble.innerHTML = `<span style="color:var(--red);">${escapeHtml(live.error_message || "エラーが発生しました")}</span>`;
+              }
+              liveAssistantNode = null;
+            }
+            activeTurnId = null;
+            runningSessionId = null;
+            setRunningState(false);
+            refreshSessions();
+          }
+        } catch (err) {
+          // ignore transient polling error
+        }
+      }, 500);
+    }
+
+    function setRunningState(running) {
+      isRunning = running;
+      el("sendBtn").disabled = running;
+      el("stopBtn").disabled = !running;
+      if (running) {
+        startLivePolling();
+      } else {
+        stopLivePolling();
+      }
+    }
+
+    function renderPlan(markdown) {
+      const container = el("planContainer");
+      if (!markdown || !markdown.trim()) {
+        container.innerHTML = '<div style="color:var(--text-muted); font-size:12px;">計画はまだありません。</div>';
+        return;
+      }
+      const items = [];
+      for (const line of markdown.split(/\r?\n/)) {
+        const t = line.trim();
+        if (!t) continue;
+        const done = t.match(/^[-*]\s*\[[xX]\]\s*(.+)$/);
+        const todo = t.match(/^[-*]\s*\[\s\]\s*(.+)$/);
+        if (done) {
+          items.push(`<div class="plan-item done"><span class="plan-check">[✓]</span><span>${escapeHtml(done[1])}</span></div>`);
+          continue;
+        }
+        if (todo) {
+          items.push(`<div class="plan-item"><span class="plan-check">[ ]</span><span>${escapeHtml(todo[1])}</span></div>`);
+          continue;
+        }
+        if (/^\|[\s:-]+\|$/.test(t) || /^\|\s*ID\s*\|/i.test(t)) {
+          continue;
+        }
+        const utMatch = t.match(/\[(UNVERIFIED|VERIFIED|REJECTED)\]/i);
+        if (utMatch) {
+          const st = utMatch[1].toUpperCase();
+          const badgeCls = st === "VERIFIED" ? "verified" : (st === "REJECTED" ? "rejected" : "unverified");
+          let displayText = t;
+          if (t.startsWith("|") && t.endsWith("|")) {
+            const cols = t.split("|").map((c) => c.trim()).filter(Boolean);
+            displayText = cols.filter((c) => !/^\[(UNVERIFIED|VERIFIED|REJECTED)\]$/i.test(c)).join(" — ");
+          } else {
+            displayText = t.replace(/^[-*]\s*/, "").replace(/\[(UNVERIFIED|VERIFIED|REJECTED)\]/ig, "").trim();
+          }
+          items.push(`<div class="plan-item ${st === "VERIFIED" ? "done" : ""}"><span class="plan-status-badge ${badgeCls}">${st}</span><span>${escapeHtml(displayText || t)}</span></div>`);
+        }
+      }
+      container.innerHTML = items.length > 0
+        ? items.join("")
+        : `<div style="font-size:12px; color:var(--text-muted); white-space:pre-wrap;">${escapeHtml(markdown)}</div>`;
+    }
+
+    function renderFiles(files) {
+      const container = el("filesContainer");
+      if (!files || files.length === 0) {
+        container.innerHTML = '<div style="color:var(--text-muted); font-size:12px;">ファイルはありません。</div>';
+        return;
+      }
+      container.innerHTML = files.map((f) => `
+        <div class="file-item" data-path="${escapeHtml(f.path)}">
+          <span class="file-name">${escapeHtml(f.path)}</span>
+          <span class="file-size">${f.size} B</span>
+        </div>
+      `).join("");
+      container.querySelectorAll(".file-item").forEach((node) => {
+        node.addEventListener("click", () => {
+          if (currentSessionId) {
+            openSessionFile(node.dataset.path);
+          } else {
+            openWorkspaceFile(node.dataset.path);
+          }
+        });
+      });
+    }
+
+    function renderTreeNodes(nodes) {
+      if (!Array.isArray(nodes) || nodes.length === 0) return "";
+      return nodes.map((node) => {
+        if (node.type === "dir" || node.type === "folder") {
+          const childrenHtml = renderTreeNodes(node.children || []);
+          return `
+            <details class="tree-folder" open>
+              <summary>📁 ${escapeHtml(node.name)}</summary>
+              <div class="tree-children">${childrenHtml || '<div style="padding:3px 6px; font-size:11px; color:var(--text-muted);">(空)</div>'}</div>
+            </details>
+          `;
+        }
+        return `
+          <div class="tree-file" data-session-path="${escapeHtml(node.path)}" title="${escapeHtml(node.path)}">
+            <span class="tree-file-name">📄 ${escapeHtml(node.name)}</span>
+            <span class="tree-file-size">${node.size || 0}B</span>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function renderSessionTree(treeData) {
+      const container = el("sessionTreeContainer");
+      if (!treeData || !Array.isArray(treeData.tree)) {
+        container.innerHTML = '<div style="padding:8px; font-size:12px; color:var(--text-muted);">構成を取得できませんでした</div>';
+        return;
+      }
+      if (treeData.tree.length === 0) {
+        container.innerHTML = '<div style="padding:8px; font-size:12px; color:var(--text-muted);">ファイルはありません</div>';
+      } else {
+        container.innerHTML = renderTreeNodes(treeData.tree);
+        container.querySelectorAll(".tree-file").forEach((node) => {
+          node.addEventListener("click", () => openSessionFile(node.dataset.sessionPath));
+        });
+      }
+      if (typeof treeData.plan_markdown === "string") {
+        renderPlan(treeData.plan_markdown);
+      }
+      if (Array.isArray(treeData.flat_files)) {
+        renderFiles(treeData.flat_files);
+      }
+      if (treeData.ultrathink !== undefined) {
+        renderUltrathinkStatus(treeData.ultrathink);
+      }
+    }
+
+    async function refreshSessionTree() {
+      if (!currentSessionId) return;
+      try {
+        const res = await fetch(`/api/sessions/${encodeURIComponent(currentSessionId)}/tree`);
+        if (!res.ok) return;
+        const treeData = await res.json();
+        renderSessionTree(treeData);
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    function renderSessions(sessions) {
+      const list = el("sessionList");
+      if (!sessions || sessions.length === 0) {
+        list.innerHTML = '<div style="padding:10px; font-size:12px; color:var(--text-muted);">履歴はありません</div>';
+        return;
+      }
+      list.innerHTML = sessions.map((s) => `
+        <div class="session-item ${s.id === currentSessionId ? "active" : ""}" data-id="${escapeHtml(s.id)}">
+          <span class="session-title">${s.mode === "ultrathink" ? "⚡ " : (s.mode === "longthink" ? "🧠 " : "")}${escapeHtml(s.title)}</span>
+          <button class="session-del" data-del="${escapeHtml(s.id)}" title="削除" type="button">×</button>
+        </div>
+      `).join("");
+
+      list.querySelectorAll(".session-item").forEach((item) => {
+        item.addEventListener("click", (e) => {
+          if (e.target.dataset.del) return;
+          loadSession(item.dataset.id);
+        });
+      });
+
+      list.querySelectorAll(".session-del").forEach((btn) => {
+        btn.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          const sid = btn.dataset.del;
+          await fetch(`/api/sessions/${encodeURIComponent(sid)}`, { method: "DELETE" });
+          if (currentSessionId === sid) {
+            startNewChat();
+          }
+          await refreshSessions();
+        });
+      });
+    }
+
+    async function refreshSessions() {
+      const res = await fetch("/api/sessions");
+      const data = await res.json();
+      renderSessions(data.sessions || []);
+    }
+
+    async function loadSession(sessionId) {
+      const res = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const session = data.session;
+      const live = data.live || null;
+
+      stopPhaseTimer();
+      currentSessionId = session.id;
+      activeTurnId = (live && live.is_running && live.turn_id) ? String(live.turn_id) : null;
+      liveAssistantNode = null;
+      liveThinkingLogs = [];
+      if (el("modeSelect")) {
+        const m = session.mode;
+        const modeVal = (m === "fastthink" || m === "ultrathink" || m === "longthink") ? m : "normal";
+        el("modeSelect").value = modeVal;
+        syncModeLimitUI(modeVal);
+      }
+      if (live && live.running_session_id) {
+        runningSessionId = live.running_session_id;
+      } else if (!(live && live.global_running)) {
+        runningSessionId = null;
+      }
+
+      const container = el("chatContainer");
+      container.innerHTML = "";
+
+      const messages = Array.isArray(session.messages) ? session.messages : [];
+
+      if (messages.length === 0 && !(live && live.is_running)) {
+        container.innerHTML = `<div class="welcome-box"><h2>${escapeHtml(session.title)}</h2><p>メッセージを入力して会話を始めましょう。</p></div>`;
+      } else {
+        let activeInProgressIdx = -1;
+        if (live && live.is_running) {
+          for (let i = messages.length - 1; i >= 0; i--) {
+            if (messages[i] && messages[i].role === "assistant" && messages[i].in_progress) {
+              activeInProgressIdx = i;
+              break;
+            }
+          }
+        }
+
+        messages.forEach((msg, idx) => {
+          if (idx === activeInProgressIdx && live && live.is_running) {
+            const storedLogs = Array.isArray(msg.thinking_log) ? msg.thinking_log : [];
+            const liveLogs = Array.isArray(live.thinking_log) ? live.thinking_log : [];
+            const mergedLogs = liveLogs.length >= storedLogs.length ? liveLogs : storedLogs;
+            restoreLiveAssistantState(live, mergedLogs);
+          } else {
+            if (msg && msg.role === "assistant" && msg.id && !msg.in_progress) {
+              finishedTurnIds.add(String(msg.id));
+            }
+            appendMessageToUI(msg);
+          }
+        });
+
+        if (live && live.is_running) {
+          runningSessionId = session.id;
+          if (activeInProgressIdx === -1) {
+            const liveLogs = Array.isArray(live.thinking_log) ? live.thinking_log : [];
+            restoreLiveAssistantState(live, liveLogs);
+          }
+          setRunningState(true);
+        } else {
+          setRunningState(Boolean(live && live.global_running));
+        }
+      }
+      lastUltrathinkStatus = null;
+      if (data.tree) {
+        renderSessionTree(data.tree);
+      } else {
+        await refreshSessionTree();
+      }
+      if (live && live.ultrathink) {
+        renderUltrathinkStatus(live.ultrathink);
+      } else if (session.mode !== "ultrathink") {
+        renderUltrathinkStatus(null);
+      } else if (!data.tree || !data.tree.ultrathink) {
+        renderUltrathinkStatus({ enabled: true, gear: "IDLE", temperature: 0.3, focus_files: [], last_commit: null, unverified: 0, verified: 0, rejected: 0, knowledge_facts: 0, active_files: 0, archived_files: 0 });
+      }
+      await refreshSessions();
+    }
+
+    function startNewChat() {
+      stopPhaseTimer();
+      currentSessionId = null;
+      activeTurnId = null;
+      liveAssistantNode = null;
+      liveThinkingLogs = [];
+      lastUltrathinkStatus = null;
+      el("chatContainer").innerHTML = `
+        <div class="welcome-box">
+          <h2>クリスタルLM</h2>
+          <p>クリスタルLM で新しいチャットを開始します。下の入力欄から質問やタスクを送信してください。</p>
+        </div>
+      `;
+      el("sessionTreeContainer").innerHTML =
+        '<div style="padding:8px; font-size:12px; color:var(--text-muted);">チャットを選択すると構成が表示されます</div>';
+      renderPlan("");
+      renderFiles([]);
+      renderUltrathinkStatus(
+        el("modeSelect") && el("modeSelect").value === "ultrathink"
+          ? { enabled: true, gear: "IDLE", temperature: 0.3, focus_files: [], last_commit: null, unverified: 0, verified: 0, rejected: 0, knowledge_facts: 0, active_files: 0, archived_files: 0 }
+          : null
+      );
+      document.querySelectorAll(".session-item").forEach((n) => n.classList.remove("active"));
+    }
+
+    const slotSelectedModels = {
+      main: "",
+      supervisor: "",
+      coder: "",
+      standard: "",
+    };
+
+    function populateModelSelectOptions(selectEl, details, emptyLabel) {
+      if (!selectEl) return;
+      selectEl.innerHTML = `<option value="">${emptyLabel}</option>`;
+      details.forEach((m) => {
+        const opt = document.createElement("option");
+        opt.value = m.id;
+        const sizePart = m.size_label ? ` (${m.size_label})` : "";
+        const statePart = m.state === "loaded" ? " [ロード済]" : "";
+        opt.textContent = `${m.id}${sizePart}${statePart}`;
+        selectEl.appendChild(opt);
+      });
+    }
+
+    function applySelectedSlotOption(selectEl, details, prevVal, detectedVal, slotKey) {
+      if (!selectEl) return;
+      let chosen = "";
+      if (prevVal && details.some((m) => m.id === prevVal)) {
+        chosen = prevVal;
+      } else if (detectedVal && details.some((m) => m.id === detectedVal)) {
+        chosen = detectedVal;
+      }
+      selectEl.value = chosen;
+      slotSelectedModels[slotKey] = chosen;
+    }
+
+    async function refreshModels() {
+      const baseUrl = el("lmUrlInput").value.trim() || "http://localhost:1234/v1";
+      const badge = el("lmBadge");
+      const mainSel = el("modelSelect");
+      const supSel = el("supervisorModelInput");
+      const coderSel = el("coderModelInput");
+      const stdSel = el("standardModelInput");
+
+      const prevMain = mainSel ? mainSel.value : "";
+      const prevSup = supSel ? supSel.value : "";
+      const prevCoder = coderSel ? coderSel.value : "";
+      const prevStd = stdSel ? stdSel.value : "";
+
+      try {
+        const res = await fetch(`/api/models?base_url=${encodeURIComponent(baseUrl)}`);
+        const lm = await res.json();
+        if (lm.connected) {
+          badge.className = "status-pill connected";
+          const details = lm.model_details && lm.model_details.length > 0
+            ? lm.model_details
+            : (lm.models || []).map((id) => ({ id, size_label: "", state: "unknown" }));
+          el("lmBadgeText").textContent = `接続済み (${details.length})`;
+
+          populateModelSelectOptions(mainSel, details, "(自動選択)");
+          populateModelSelectOptions(supSel, details, "(自動検出)");
+          populateModelSelectOptions(coderSel, details, "(自動検出)");
+          populateModelSelectOptions(stdSel, details, "(自動検出)");
+
+          applySelectedSlotOption(mainSel, details, prevMain || slotSelectedModels.main, lm.configured_main_model || "", "main");
+          applySelectedSlotOption(supSel, details, prevSup || slotSelectedModels.supervisor, lm.detected_supervisor_model || "", "supervisor");
+          applySelectedSlotOption(coderSel, details, prevCoder || slotSelectedModels.coder, lm.detected_coder_model || "", "coder");
+          applySelectedSlotOption(stdSel, details, prevStd || slotSelectedModels.standard, lm.detected_standard_model || "", "standard");
+        } else {
+          badge.className = "status-pill disconnected";
+          el("lmBadgeText").textContent = "LM Studio未接続";
+        }
+      } catch (err) {
+        badge.className = "status-pill disconnected";
+        el("lmBadgeText").textContent = "LM Studio未接続";
+      }
+    }
+
+    async function handleRoleModelSelectChange(role, selectEl) {
+      if (!selectEl) return;
+      const newModel = selectEl.value || "";
+      const prevModel = slotSelectedModels[role] || "";
+      const baseUrl = el("lmUrlInput").value.trim() || "http://localhost:1234/v1";
+      if (!newModel && !prevModel) return;
+
+      const roleSelectMap = {
+        main: el("modelSelect"),
+        supervisor: el("supervisorModelInput"),
+        coder: el("coderModelInput"),
+        standard: el("standardModelInput"),
+      };
+      const keepModels = Object.entries(roleSelectMap)
+        .filter(([rName, sEl]) => rName !== role && sEl && sEl.value)
+        .map(([, sEl]) => sEl.value);
+
+      const prevText = el("lmBadgeText").textContent;
+      el("lmBadgeText").textContent = "旧モデル解放・モデル切替中...";
+      Object.values(roleSelectMap).forEach((sEl) => {
+        if (sEl) sEl.disabled = true;
+      });
+
+      try {
+        const res = await fetch("/api/models/select", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: newModel,
+            base_url: baseUrl,
+            parallel: 1,
+            role,
+            previous_model: prevModel || null,
+            keep_models: keepModels,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          alert(data.detail || "モデルの切り替えに失敗しました。");
+          selectEl.value = prevModel;
+          el("lmBadgeText").textContent = prevText;
+        } else {
+          slotSelectedModels[role] = newModel;
+          await refreshModels();
+          if (newModel && Array.from(selectEl.options).some((o) => o.value === newModel)) {
+            selectEl.value = newModel;
+          } else if (!newModel) {
+            selectEl.value = "";
+          }
+          slotSelectedModels[role] = selectEl.value;
+        }
+      } catch (err) {
+        alert(`モデル切り替え通信エラー: ${err.message}`);
+        selectEl.value = prevModel;
+        el("lmBadgeText").textContent = prevText;
+      } finally {
+        Object.values(roleSelectMap).forEach((sEl) => {
+          if (sEl) sEl.disabled = false;
+        });
+      }
+    }
+
+    el("modelSelect").addEventListener("change", () => handleRoleModelSelectChange("main", el("modelSelect")));
+    el("supervisorModelInput").addEventListener("change", () => handleRoleModelSelectChange("supervisor", el("supervisorModelInput")));
+    el("coderModelInput").addEventListener("change", () => handleRoleModelSelectChange("coder", el("coderModelInput")));
+    el("standardModelInput").addEventListener("change", () => handleRoleModelSelectChange("standard", el("standardModelInput")));
+
+    async function openMemoryEditor(filename) {
+      const res = await fetch("/api/memory");
+      const data = await res.json();
+      const content = (data.memory && data.memory[filename]) || "";
+      editingMemoryFile = filename;
+      editingSessionFile = null;
+      el("modalTitle").textContent = `memory/${filename}`;
+      el("modalEditor").value = content;
+      el("modalEditor").readOnly = false;
+      el("modalFooter").style.display = "flex";
+      el("editorModal").classList.add("open");
+    }
+
+    async function openWorkspaceFile(filePath) {
+      const res = await fetch(`/api/files/content?path=${encodeURIComponent(filePath)}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      editingMemoryFile = null;
+      editingSessionFile = null;
+      el("modalTitle").textContent = `workspace/${data.path}`;
+      el("modalEditor").value = data.content;
+      el("modalEditor").readOnly = true;
+      el("modalFooter").style.display = "none";
+      el("editorModal").classList.add("open");
+    }
+
+    async function openSessionFile(relPath) {
+      if (!currentSessionId) return;
+      const res = await fetch(
+        `/api/sessions/${encodeURIComponent(currentSessionId)}/file?path=${encodeURIComponent(relPath)}`
+      );
+      if (!res.ok) return;
+      const data = await res.json();
+      editingMemoryFile = null;
+      editingSessionFile = data.path;
+      el("modalTitle").textContent = `sessions/${currentSessionId}/${data.path}`;
+      el("modalEditor").value = data.content;
+      el("modalEditor").readOnly = false;
+      el("modalFooter").style.display = "flex";
+      el("editorModal").classList.add("open");
+    }
+
+    el("saveMemoryBtn").addEventListener("click", async () => {
+      const content = el("modalEditor").value;
+      if (editingSessionFile && currentSessionId) {
+        const res = await fetch(
+          `/api/sessions/${encodeURIComponent(currentSessionId)}/file?path=${encodeURIComponent(editingSessionFile)}`,
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ content }),
+          }
+        );
+        if (res.ok) {
+          if (editingSessionFile === "plan.md") renderPlan(content);
+          await refreshSessionTree();
+          el("editorModal").classList.remove("open");
+        }
+        return;
+      }
+      if (!editingMemoryFile) return;
+      const res = await fetch(`/api/memory/${encodeURIComponent(editingMemoryFile)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content }),
+      });
+      if (res.ok) {
+        if (editingMemoryFile === "plan.md") renderPlan(content);
+        el("editorModal").classList.remove("open");
+      }
+    });
+
+    el("closeModalBtn").addEventListener("click", () => el("editorModal").classList.remove("open"));
+    el("editorModal").addEventListener("click", (e) => {
+      if (e.target === el("editorModal")) el("editorModal").classList.remove("open");
+    });
+
+    let viewerSelectedFilePath = null;
+    let viewerLastSessionId = null;
+
+    function highlightViewerSelection() {
+      const pane = el("viewerTreePane");
+      if (!pane) return;
+      pane.querySelectorAll(".tree-file").forEach((node) => {
+        node.classList.toggle("active", node.dataset.sessionPath === viewerSelectedFilePath);
+      });
+    }
+
+    async function loadWorkspaceViewerFile(relPath) {
+      if (!currentSessionId || !relPath) return;
+      viewerSelectedFilePath = relPath;
+      highlightViewerSelection();
+      const pathEl = el("viewerSelectedPath");
+      const metaEl = el("viewerSelectedMeta");
+      const codeEl = el("viewerPreviewCode");
+      pathEl.textContent = `sessions/${currentSessionId}/${relPath}`;
+      metaEl.textContent = "読込中...";
+      try {
+        const res = await fetch(
+          `/api/sessions/${encodeURIComponent(currentSessionId)}/file_content?path=${encodeURIComponent(relPath)}`
+        );
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          metaEl.textContent = `Error ${res.status}`;
+          codeEl.textContent = err.detail || `ファイルを読み込めませんでした: ${relPath}`;
+          return;
+        }
+        const data = await res.json();
+        const text = typeof data.content === "string" ? data.content : "";
+        const lineCount = text ? text.split(/\r?\n/).length : 0;
+        const sizeLabel = typeof data.size === "number" ? `${data.size} B / ` : "";
+        pathEl.textContent = `sessions/${currentSessionId}/${data.path || relPath}`;
+        metaEl.textContent = `${sizeLabel}${lineCount} 行`;
+        codeEl.textContent = text || "(空ファイル)";
+      } catch (err) {
+        metaEl.textContent = "通信エラー";
+        codeEl.textContent = String(err);
+      }
+    }
+
+    async function refreshWorkspaceViewer(autoSelectFirst = false) {
+      const pane = el("viewerTreePane");
+      const titleEl = el("viewerModalTitle");
+      if (!pane) return;
+      if (currentSessionId !== viewerLastSessionId) {
+        viewerLastSessionId = currentSessionId;
+        viewerSelectedFilePath = null;
+      }
+      if (!currentSessionId) {
+        titleEl.textContent = "📂 ワークスペース閲覧（Files）";
+        pane.innerHTML = '<div style="padding:10px; font-size:12px; color:var(--text-muted);">まだセッションが開始されていません。メッセージを送信するか履歴からセッションを選択してください。</div>';
+        el("viewerSelectedPath").textContent = "セッション未選択";
+        el("viewerSelectedMeta").textContent = "";
+        el("viewerPreviewCode").textContent = "セッション開始後、ここに生成スクリプトやナレッジベースの内容を表示できます。";
+        return;
+      }
+
+      titleEl.textContent = `📂 ワークスペース閲覧（sessions/${currentSessionId}）`;
+      try {
+        const res = await fetch(`/api/sessions/${encodeURIComponent(currentSessionId)}/files`);
+        if (!res.ok) {
+          pane.innerHTML = `<div style="padding:10px; font-size:12px; color:var(--red);">一覧の取得に失敗しました (${res.status})</div>`;
+          return;
+        }
+        const data = await res.json();
+        const treeNodes = Array.isArray(data.tree) ? data.tree : [];
+        const flatFiles = Array.isArray(data.flat_files) ? data.flat_files : [];
+        if (treeNodes.length === 0) {
+          pane.innerHTML = '<div style="padding:10px; font-size:12px; color:var(--text-muted);">ファイルはまだ作成されていません。</div>';
+          return;
+        }
+        pane.innerHTML = renderTreeNodes(treeNodes);
+        pane.querySelectorAll(".tree-file").forEach((node) => {
+          node.addEventListener("click", () => loadWorkspaceViewerFile(node.dataset.sessionPath));
+        });
+
+        const flatSet = new Set(flatFiles.map((f) => f.path));
+        if (viewerSelectedFilePath && flatSet.has(viewerSelectedFilePath)) {
+          await loadWorkspaceViewerFile(viewerSelectedFilePath);
+        } else if (autoSelectFirst && flatFiles.length > 0) {
+          const preferred =
+            flatFiles.find((f) => f.path.includes("10_active_workspace/")) ||
+            flatFiles.find((f) => f.path.endsWith("NORTH_STAR.md")) ||
+            flatFiles[0];
+          await loadWorkspaceViewerFile(preferred.path);
+        } else {
+          highlightViewerSelection();
+        }
+      } catch (err) {
+        pane.innerHTML = `<div style="padding:10px; font-size:12px; color:var(--red);">読込エラー: ${escapeHtml(String(err))}</div>`;
+      }
+    }
+
+    async function openWorkspaceViewer(initialPath = null) {
+      if (initialPath) viewerSelectedFilePath = initialPath;
+      el("workspaceViewerModal").classList.add("open");
+      await refreshWorkspaceViewer(!viewerSelectedFilePath);
+    }
+
+    el("openWorkspaceViewerBtn").addEventListener("click", () => openWorkspaceViewer());
+    el("openWorkspaceViewerRightBtn").addEventListener("click", () => openWorkspaceViewer());
+    el("viewerRefreshBtn").addEventListener("click", () => refreshWorkspaceViewer(false));
+    el("closeViewerModalBtn").addEventListener("click", () => el("workspaceViewerModal").classList.remove("open"));
+    el("workspaceViewerModal").addEventListener("click", (e) => {
+      if (e.target === el("workspaceViewerModal")) el("workspaceViewerModal").classList.remove("open");
+    });
+
+    document.querySelectorAll(".memory-btn").forEach((btn) => {
+      btn.addEventListener("click", () => openMemoryEditor(btn.dataset.file));
+    });
+
+    function handleSSEEvent(evt) {
+      const { type, data } = evt;
+      const evtSessionId = (data && data.session_id) || null;
+      const evtTurnId = (data && (data.turn_id || (data.message && data.message.id)))
+        ? String(data.turn_id || data.message.id)
+        : "";
+      if (evtTurnId && finishedTurnIds.has(evtTurnId)) {
+        return;
+      }
+      if (activeTurnId && evtTurnId && evtTurnId !== activeTurnId) {
+        return;
+      }
+      if (
+        evtSessionId &&
+        (type === "status" || type === "step" || type === "thinking" || type === "work" || type === "d1_supervisor" || type === "d1_coder_route" || type === "trash_isolation" || type === "direct_burst" || type === "ultrathink_status")
+      ) {
+        runningSessionId = evtSessionId;
+      }
+      const targetSessionId = evtSessionId || runningSessionId;
+      const isOtherSession = Boolean(
+        (currentSessionId && targetSessionId && currentSessionId !== targetSessionId) ||
+        (!currentSessionId && !liveAssistantNode && targetSessionId)
+      );
+
+      switch (type) {
+        case "status":
+          if (!isOtherSession && evtTurnId && !activeTurnId && data.status === "running") {
+            activeTurnId = evtTurnId;
+            if (liveAssistantNode) liveAssistantNode.dataset.turnId = activeTurnId;
+          }
+          if (data.status !== "running" && data.status !== "stopping") {
+            runningSessionId = null;
+          }
+          setRunningState(data.status === "running" || data.status === "stopping");
+          el("stepBadge").textContent = formatStepBadgeText(data.step || data.current_step || 0, data.max_steps, el("modeSelect") ? el("modeSelect").value : "");
+          if (!isOtherSession) {
+            if (data.state === "thinking" || data.state === "working") {
+              startPhaseTimer(
+                data.state,
+                data.step || data.current_step || 1,
+                data.label || data.tool || "",
+                data.elapsed_seconds || 0
+              );
+            } else if (!isRunning) {
+              stopPhaseTimer();
+            }
+            if (data.ultrathink) {
+              renderUltrathinkStatus(data.ultrathink);
+            }
+          }
+          break;
+        case "step":
+          el("stepBadge").textContent = formatStepBadgeText(data.current_step || 0, data.max_steps, el("modeSelect") ? el("modeSelect").value : "");
+          break;
+        case "phase":
+          if (!isOtherSession) {
+            startPhaseTimer(data.phase, data.step, data.label || "");
+          }
+          break;
+        case "narration":
+          if (!isOtherSession && data && data.content) {
+            const entry = { type: "step_output", step: data.step, content: data.content };
+            const dup = liveThinkingLogs.some(
+              (x) =>
+                x.type === "step_output" &&
+                Number(x.step || 0) === Number(entry.step || 0) &&
+                (x.content || "") === (entry.content || "")
+            );
+            if (!dup) {
+              liveThinkingLogs.push(entry);
+              updateLiveStepsTimeline();
+              scrollToBottom();
+            }
+          }
+          break;
+        case "thinking":
+        case "work":
+        case "tool_call":
+        case "tool_result":
+        case "warning":
+        case "d1_coder_route":
+        case "d1_supervisor":
+        case "trash_isolation": {
+          if (isOtherSession) break;
+          const entry = { type, ...data };
+          const dup = liveThinkingLogs.some(
+            (x) =>
+              x.type === entry.type &&
+              Number(x.step || 0) === Number(entry.step || 0) &&
+              (x.tool || "") === (entry.tool || "") &&
+              (x.task_id || "") === (entry.task_id || "") &&
+              (x.context_label || "") === (entry.context_label || "") &&
+              (x.selected_model || "") === (entry.selected_model || "") &&
+              (x.content || x.message || x.stuck_reason || x.reason || "") === (entry.content || entry.message || entry.stuck_reason || entry.reason || "")
+          );
+          if (!dup) {
+            liveThinkingLogs.push(entry);
+            updateLiveStepsTimeline();
+            if (
+              currentPhaseInfo &&
+              ((type === "thinking" && currentPhaseInfo.phase === "thinking") ||
+                (type === "work" && currentPhaseInfo.phase === "working")) &&
+              Number(currentPhaseInfo.step || 0) === Number(entry.step || 0)
+            ) {
+              finalizeCurrentPhaseStep();
+            }
+            scrollToBottom();
+          }
+          break;
+        }
+        case "parallel_workers": {
+          if (isOtherSession) break;
+          upsertParallelWorkersInLogs(liveThinkingLogs, data);
+          updateLiveStepsTimeline();
+          scrollToBottom();
+          break;
+        }
+        case "direct_burst": {
+          if (isOtherSession) break;
+          const bEntry = { type: "direct_burst", ...data };
+          const bIdx = liveThinkingLogs.findIndex(
+            (x) => x.type === "direct_burst" && Number(x.step || 0) === Number(bEntry.step || 0)
+          );
+          if (bIdx >= 0) {
+            liveThinkingLogs[bIdx] = bEntry;
+          } else {
+            liveThinkingLogs.push(bEntry);
+          }
+          updateLiveStepsTimeline();
+          scrollToBottom();
+          break;
+        }
+        case "final_answer":
+          if (evtTurnId) finishedTurnIds.add(evtTurnId);
+          stopLivePolling();
+          stopParallelWorkersTimer();
+          runningSessionId = null;
+          setRunningState(false);
+          refreshSessions();
+          if (currentSessionId) refreshSessionTree();
+          if (isOtherSession) break;
+          stopPhaseTimer();
+          if (liveAssistantNode) {
+            finalizeLiveAssistantWithMessage(data.message);
+          }
+          activeTurnId = null;
+          liveThinkingLogs = [];
+          break;
+        case "error":
+          if (evtTurnId) finishedTurnIds.add(evtTurnId);
+          stopLivePolling();
+          stopParallelWorkersTimer();
+          runningSessionId = null;
+          setRunningState(false);
+          refreshSessions();
+          if (isOtherSession) break;
+          stopPhaseTimer();
+          if (liveAssistantNode) {
+            const bubble = liveAssistantNode.querySelector(".assistant-bubble");
+            if (bubble) bubble.innerHTML = `<span style="color:var(--red);">${escapeHtml(data.message)}</span>`;
+            liveAssistantNode = null;
+          }
+          activeTurnId = null;
+          break;
+        case "memory_update":
+          if (data.filename === "plan.md") renderPlan(data.content);
+          if (!evtSessionId || evtSessionId === currentSessionId) {
+            refreshSessionTree();
+            if (el("workspaceViewerModal").classList.contains("open")) {
+              refreshWorkspaceViewer(false);
+            }
+          }
+          break;
+        case "files_update":
+          if (!evtSessionId || evtSessionId === currentSessionId) {
+            if (data.tree) {
+              renderSessionTree(data.tree);
+            } else {
+              renderFiles(data.files);
+              refreshSessionTree();
+            }
+            if (el("workspaceViewerModal").classList.contains("open")) {
+              refreshWorkspaceViewer(false);
+            }
+          }
+          break;
+        case "ultrathink_status":
+          if (!isOtherSession && data) {
+            renderUltrathinkStatus(data);
+          }
+          break;
+        case "session_update":
+          refreshSessions();
+          break;
+      }
+    }
+
+    function connectSSE() {
+      if (eventSource) eventSource.close();
+      eventSource = new EventSource("/api/stream");
+      const types = [
+        "status", "step", "phase", "narration", "thinking", "work", "parallel_workers",
+        "tool_call", "tool_result", "warning", "d1_coder_route", "d1_supervisor", "trash_isolation", "direct_burst",
+        "error", "final_answer", "memory_update", "files_update", "ultrathink_status", "session_update"
+      ];
+      types.forEach((t) => {
+        eventSource.addEventListener(t, (e) => {
+          try {
+            handleSSEEvent(JSON.parse(e.data));
+          } catch (err) {
+            console.error(err);
+          }
+        });
+      });
+      eventSource.onerror = () => {
+        if (eventSource) {
+          eventSource.close();
+          eventSource = null;
+        }
+        setTimeout(connectSSE, 2000);
+      };
+    }
+
+    function closeSlashAutocomplete() {
+      const popup = el("slashAutocomplete");
+      if (popup) {
+        popup.classList.remove("open");
+        popup.innerHTML = "";
+      }
+      slashAcMatches = [];
+      slashAcIndex = 0;
+    }
+
+    function renderSlashAutocomplete() {
+      const popup = el("slashAutocomplete");
+      if (!popup || slashAcMatches.length === 0) {
+        closeSlashAutocomplete();
+        return;
+      }
+      popup.innerHTML = slashAcMatches.map((item, idx) => `
+        <div class="slash-item ${idx === slashAcIndex ? "active" : ""}" data-slash-idx="${idx}" role="option" aria-selected="${idx === slashAcIndex}">
+          <span class="slash-cmd">${escapeHtml(item.cmd)}</span>
+          <span class="slash-desc">${escapeHtml(item.desc)}</span>
+          <span class="slash-meta">${escapeHtml(item.maxStepsLabel || "∞ steps")}</span>
+        </div>
+      `).join("");
+      popup.classList.add("open");
+      popup.querySelectorAll(".slash-item").forEach((node) => {
+        node.addEventListener("mousedown", (ev) => {
+          ev.preventDefault();
+          const idx = Number(node.dataset.slashIdx || 0);
+          if (slashAcMatches[idx]) applySlashCommand(slashAcMatches[idx]);
+        });
+      });
+    }
+
+    function applySlashCommand(item) {
+      if (!item) return;
+      const input = el("chatInput");
+      if (input) {
+        input.value = `${item.cmd} `;
+        input.style.height = "auto";
+        input.style.height = Math.min(input.scrollHeight, 180) + "px";
+        input.focus();
+      }
+      if (el("modeSelect")) {
+        el("modeSelect").value = item.mode;
+        el("modeSelect").dispatchEvent(new Event("change"));
+      }
+      syncModeLimitUI(item.mode);
+      closeSlashAutocomplete();
+    }
+
+    function updateSlashAutocomplete() {
+      const input = el("chatInput");
+      if (!input) return;
+      const raw = input.value;
+      if (!/^\/[^\s]*$/.test(raw)) {
+        closeSlashAutocomplete();
+        return;
+      }
+      const query = raw.toLowerCase();
+      slashAcMatches = SLASH_COMMANDS.filter((c) => c.cmd.startsWith(query));
+      if (slashAcMatches.length === 0) {
+        closeSlashAutocomplete();
+        return;
+      }
+      if (slashAcIndex >= slashAcMatches.length) slashAcIndex = 0;
+      renderSlashAutocomplete();
+    }
+
+    async function sendMessage() {
+      closeSlashAutocomplete();
+      const text = el("chatInput").value.trim();
+      if (!text || isRunning) return;
+
+      let chosenMode = (el("modeSelect") && el("modeSelect").value) || "normal";
+      if (text.startsWith("/fastthink")) {
+        chosenMode = "fastthink";
+      } else if (text.startsWith("/ultrathink")) {
+        chosenMode = "ultrathink";
+      } else if (text.startsWith("/longthink")) {
+        chosenMode = "longthink";
+      } else if (text.startsWith("/normal")) {
+        chosenMode = "normal";
+      }
+      if (el("modeSelect")) el("modeSelect").value = chosenMode;
+      syncModeLimitUI(chosenMode);
+
+      const requestedMaxSteps = chosenMode === "fastthink" ? 1 : 0;
+
+      // Detach any prior turn's DOM reference & reset all turn-scoped client buffers cleanly
+      stopLivePolling();
+      stopPhaseTimer();
+      if (activeTurnId) {
+        finishedTurnIds.add(activeTurnId);
+      }
+      if (liveAssistantNode) {
+        const stalePhase = liveAssistantNode.querySelector(".turn-live-phase");
+        if (stalePhase) stalePhase.remove();
+        liveAssistantNode = null;
+      }
+      activeTurnId = null;
+      currentLiveStepEl = null;
+      currentPhaseInfo = null;
+      liveThinkingLogs = [];
+
+      el("chatInput").value = "";
+      el("chatInput").style.height = "auto";
+
+      // Lock UI immediately but wait to start /api/live polling until backend returns new turn_id
+      isRunning = true;
+      el("sendBtn").disabled = true;
+      el("stopBtn").disabled = false;
+
+      appendMessageToUI({ role: "user", content: text });
+      createLiveAssistantPlaceholder("");
+      if (chosenMode === "ultrathink") {
+        renderUltrathinkStatus(
+          lastUltrathinkStatus && lastUltrathinkStatus.enabled
+            ? { ...lastUltrathinkStatus, gear: "HIGH", temperature: 0.3 }
+            : { enabled: true, gear: "HIGH", temperature: 0.3, focus_files: [], last_commit: null, unverified: 0, verified: 0, rejected: 0, knowledge_facts: 0, active_files: 0, archived_files: 0 }
+        );
+      }
+
+      try {
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            session_id: currentSessionId,
+            message: text,
+            max_steps: requestedMaxSteps,
+            model: el("modelSelect").value || null,
+            supervisor_model: (el("supervisorModelInput") && el("supervisorModelInput").value.trim()) || "d1-2B",
+            coder_model: (el("coderModelInput") && el("coderModelInput").value.trim()) || "lfm-3-coder-claude-distill",
+            standard_model: (el("standardModelInput") && el("standardModelInput").value.trim()) || "LFM3-1.7B",
+            base_url: el("lmUrlInput").value.trim() || "http://localhost:1234/v1",
+            mode: chosenMode,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          stopPhaseTimer();
+          runningSessionId = null;
+          activeTurnId = null;
+          if (liveAssistantNode) {
+            liveAssistantNode.querySelector(".assistant-bubble").innerHTML =
+              `<span style="color:var(--red);">エラー: ${escapeHtml(data.detail || "送信に失敗しました")}</span>`;
+            liveAssistantNode = null;
+          }
+          setRunningState(false);
+          return;
+        }
+        currentSessionId = data.session_id;
+        runningSessionId = data.session_id;
+        activeTurnId = data.turn_id || (data.agent && data.agent.turn_id) || null;
+        if (activeTurnId) {
+          finishedTurnIds.delete(activeTurnId);
+          if (liveAssistantNode) {
+            liveAssistantNode.dataset.turnId = activeTurnId;
+          }
+        }
+        setRunningState(true);
+        await refreshSessions();
+        await refreshSessionTree();
+      } catch (err) {
+        stopPhaseTimer();
+        runningSessionId = null;
+        activeTurnId = null;
+        if (liveAssistantNode) {
+          liveAssistantNode.querySelector(".assistant-bubble").innerHTML =
+            `<span style="color:var(--red);">通信エラー: ${escapeHtml(err.message)}</span>`;
+          liveAssistantNode = null;
+        }
+        setRunningState(false);
+      }
+    }
+
+    el("sendBtn").addEventListener("click", sendMessage);
+    el("stopBtn").addEventListener("click", async () => {
+      await fetch("/api/stop", { method: "POST" });
+    });
+
+    if (el("modeSelect")) {
+      el("modeSelect").addEventListener("change", (e) => {
+        const modeVal = e.target.value;
+        syncModeLimitUI(modeVal);
+        if (!currentSessionId) {
+          renderUltrathinkStatus(
+            modeVal === "ultrathink"
+              ? { enabled: true, gear: "IDLE", temperature: 0.3, focus_files: [], last_commit: null, unverified: 0, verified: 0, rejected: 0, knowledge_facts: 0, active_files: 0, archived_files: 0 }
+              : null
+          );
+        }
+      });
+    }
+
+    document.addEventListener("click", (e) => {
+      const popup = el("slashAutocomplete");
+      const box = popup && popup.closest(".input-box");
+      if (popup && box && !box.contains(e.target)) {
+        closeSlashAutocomplete();
+      }
+    });
+
+    el("chatInput").addEventListener("keydown", (e) => {
+      const popup = el("slashAutocomplete");
+      if (popup && popup.classList.contains("open") && slashAcMatches.length > 0) {
+        if (e.key === "ArrowDown") {
+          e.preventDefault();
+          slashAcIndex = (slashAcIndex + 1) % slashAcMatches.length;
+          renderSlashAutocomplete();
+          return;
+        }
+        if (e.key === "ArrowUp") {
+          e.preventDefault();
+          slashAcIndex = (slashAcIndex - 1 + slashAcMatches.length) % slashAcMatches.length;
+          renderSlashAutocomplete();
+          return;
+        }
+        if (e.key === "Escape") {
+          e.preventDefault();
+          closeSlashAutocomplete();
+          return;
+        }
+        if (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey)) {
+          e.preventDefault();
+          applySlashCommand(slashAcMatches[slashAcIndex]);
+          return;
+        }
+      }
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+
+    el("chatInput").addEventListener("input", function () {
+      this.style.height = "auto";
+      this.style.height = Math.min(this.scrollHeight, 180) + "px";
+      updateSlashAutocomplete();
+    });
+
+    el("newChatBtn").addEventListener("click", startNewChat);
+    el("refreshModelsBtn").addEventListener("click", refreshModels);
+
+    async function init() {
+      connectSSE();
+      const baseUrl = el("lmUrlInput").value.trim() || "http://localhost:1234/v1";
+      try {
+        const res = await fetch(`/api/status?base_url=${encodeURIComponent(baseUrl)}`);
+        const data = await res.json();
+        renderSessions(data.sessions || []);
+        renderFiles(data.files || []);
+        if (data.memory && data.memory["plan.md"]) renderPlan(data.memory["plan.md"]);
+        if (data.sessions && data.sessions.length > 0) {
+          await loadSession(data.sessions[0].id);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+      await refreshModels();
+    }
+
+    init();
+  </script>
+</body>
+</html>
